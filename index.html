@@ -1239,8 +1239,14 @@ function renderKoikoiModal(viewSeat) {
   const pend = state.pendingKoikoi;
   show('koikoiModal');
   $('koikoiTitle').textContent = pend.player === viewSeat ? 'You completed a yaku!' : `${state.names[pend.player]} completed a yaku!`;
+  const priorMultiplier = Math.pow(2, state.koikoiCalls);
+  const shobuNowScore = pend.points * priorMultiplier;
   $('koikoiYakuList').innerHTML = pend.yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
-    + `<div class="yaku-total"><span>Total</span><span>${pend.points}</span></div>`;
+    + `<div class="yaku-total"><span>Yaku total</span><span>${pend.points}</span></div>`
+    + (priorMultiplier > 1
+        ? `<div><span>Koi-Koi multiplier (already called ${state.koikoiCalls}x)</span><span>x${priorMultiplier}</span></div>`
+          + `<div class="yaku-total"><span>Score if you Shobu now</span><span>${shobuNowScore}</span></div>`
+        : '');
   const capHint = $('koikoiCapHint');
   if (state.maxKoikoiCalls >= 0) {
     const remaining = state.maxKoikoiCalls - state.koikoiCalls;

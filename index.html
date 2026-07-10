@@ -96,15 +96,11 @@
 
   .card {
     width: 62px; height: 94px; border-radius: 7px; position: relative;
-    display:flex; flex-direction:column; align-items:center; justify-content:space-between;
-    padding: 5px 3px; font-size: 9px; text-align:center; color: white;
-    box-shadow: 0 2px 5px rgba(0,0,0,.4); flex-shrink:0;
-    border: 3px solid rgba(255,255,255,.15);
+    box-shadow: 0 2px 5px rgba(0,0,0,.4); flex-shrink:0; overflow: hidden;
+    border: 3px solid rgba(255,255,255,.15); background: #0f141c;
     touch-action: manipulation; user-select: none; -webkit-user-select: none;
   }
-  .card .icon { font-size: 22px; line-height:1; }
-  .card .mn { font-weight:700; font-size: 9px; opacity:.85; }
-  .card .nm { font-size: 8px; opacity:.85; }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
   .card.bright { border-color: var(--accent); box-shadow: 0 0 10px rgba(246,201,69,.5); }
   .card.animal { border-color: var(--accent2); }
   .card.ribbon.poetry { border-color: #e6b8ff; }
@@ -115,23 +111,46 @@
   .card.clickable:hover { transform: translateY(-4px); box-shadow: 0 6px 14px rgba(0,0,0,.5); }
   .card.selectable { outline: 3px solid var(--accent); outline-offset: 2px; cursor:pointer; animation: pulse 1.1s infinite; }
   .card.disabled-pick { outline: 3px solid rgba(246,201,69,.4); outline-offset:2px; }
+  .card.has-match { outline: 2px solid rgba(89,193,90,.75); outline-offset: 2px; }
+  .card.selected { transform: translateY(-8px); outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 8px 16px rgba(0,0,0,.5); }
+  .card.dimmed { opacity: .35; filter: grayscale(50%); }
   @keyframes pulse { 0%,100% { outline-color: var(--accent);} 50% { outline-color: rgba(246,201,69,.3);} }
 
   .card-back {
-    width: 46px; height: 68px; border-radius: 6px; flex-shrink:0;
-    background: repeating-linear-gradient(45deg, #2c3a52, #2c3a52 4px, #384a68 4px, #384a68 8px);
-    border: 2px solid #4a5d80; box-shadow: 0 2px 5px rgba(0,0,0,.4);
+    width: 46px; height: 68px; border-radius: 6px; flex-shrink:0; overflow:hidden;
+    border: 2px solid #4a5d80; box-shadow: 0 2px 5px rgba(0,0,0,.4); background:#1c2536;
   }
+  .card-back img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
 
   .capture-strip { display:flex; gap: 14px; }
   .capture-col { flex:1; background: var(--panel); border-radius: 10px; padding: 8px 10px; }
   .capture-col .title { font-size: 11px; color: var(--muted); margin-bottom: 6px; display:flex; justify-content:space-between;}
   .capture-mini-row { display:flex; gap:4px; flex-wrap:wrap; min-height: 30px; }
   .mini-card {
-    width: 22px; height: 32px; border-radius: 4px; font-size: 13px;
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    width: 22px; height: 32px; border-radius: 4px; flex-shrink:0; overflow:hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,.4);
   }
+  .mini-card img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+  .cap-group { margin-bottom: 6px; }
+  .cap-group:last-child { margin-bottom: 0; }
+  .cap-group-label { font-size: 9.5px; color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+
+  .action-bar { background: rgba(246,201,69,.12); border-radius: 8px; padding: 10px; text-align:center; }
+  .action-bar .hint { margin-bottom: 8px; color: var(--ink); }
+  .action-bar .row { justify-content: center; }
+  .action-bar .row > * { flex: 0 1 170px; }
+
+  .guide-toggle-bar { display:flex; justify-content:center; }
+  .guide-toggle-bar button { padding: 6px 14px; min-height: 32px; font-size: 12px; }
+  .guide-section { margin-top: 14px; }
+  .guide-section-title { font-size: 13px; color: var(--accent); font-weight:700; margin-bottom:8px; }
+  .guide-yaku-row { background:#0f141c; border-radius:8px; padding:8px 10px; margin-bottom:6px; }
+  .guide-yaku-head { display:flex; justify-content:space-between; font-size:13px; font-weight:700; }
+  .guide-yaku-desc { font-size:11.5px; color: var(--muted); margin-top:2px; }
+  .guide-deck-grid { display:flex; flex-direction:column; gap:8px; }
+  .guide-month { display:flex; align-items:center; gap:8px; }
+  .guide-month-label { width: 92px; flex-shrink:0; font-size:12px; color: var(--muted); }
+  .guide-month-cards { display:flex; gap:4px; flex-wrap:wrap; }
 
   .deck-pile { position:absolute; top: 10px; right: 14px; text-align:center; font-size: 10px; color: var(--muted); }
   .deck-pile .card-back { margin: 0 auto 3px; }
@@ -168,27 +187,25 @@
     .hand-row { min-height: 84px; gap: 4px; }
     .field-row { min-height: 90px; gap: 4px; padding: 6px; }
 
-    .card { width: 46px; height: 70px; padding: 3px 2px; border-width: 2px; }
-    .card .icon { font-size: 17px; }
-    .card .mn { font-size: 7.5px; }
-    .card .nm { display: none; }
+    .card { width: 46px; height: 70px; border-width: 2px; }
     .card-back { width: 38px; height: 56px; }
     .deck-pile { top: 6px; right: 8px; }
 
     .capture-strip { gap: 8px; flex-wrap: wrap; }
     .capture-col { padding: 6px 8px; min-width: 45%; }
-    .mini-card { width: 18px; height: 26px; font-size: 11px; }
+    .mini-card { width: 18px; height: 26px; }
 
     .log-panel { max-height: 70px; font-size: 11px; }
     .modal { padding: 18px; max-width: 92vw; }
     .overlay { padding: 10px; }
     .yaku-list { font-size: 12px; padding: 8px 10px; }
+
+    .action-bar .row > * { flex: 1 1 auto; }
+    .guide-month-label { width: 70px; font-size: 11px; }
   }
 
   @media (max-width: 400px) {
     .card { width: 40px; height: 60px; }
-    .card .icon { font-size: 15px; }
-    .card .mn { font-size: 7px; }
     .capture-col { min-width: 100%; }
   }
 
@@ -203,7 +220,7 @@
   <!-- ================= LOBBY ================= -->
   <div id="lobbyScreen">
     <h1>🎴 Koi-Koi <span class="jp">こいこい</span></h1>
-    <div class="subtitle">Two-player Hanafuda card game — play with a friend on another computer.</div>
+    <div class="subtitle">Two-player Hanafuda card game — play online with a friend on their own device, or pass-and-play together on one.</div>
 
     <div class="card-panel">
       <div>
@@ -219,6 +236,15 @@
           <option value="6" selected>6 rounds</option>
           <option value="9">9 rounds</option>
           <option value="12">12 rounds</option>
+        </select>
+      </div>
+      <div>
+        <label>Koi-Koi mode</label>
+        <select id="koikoiModeSelect">
+          <option value="-1" selected>Unlimited (Classic)</option>
+          <option value="3">Max 3 Calls</option>
+          <option value="1">Max 1 Call</option>
+          <option value="0">No Koi-Koi (auto Shobu)</option>
         </select>
       </div>
       <button class="btn-primary btn-block" id="hostBtn">Host a New Game</button>
@@ -244,6 +270,10 @@
         Highest total score after all rounds wins.
       </div>
     </details>
+
+    <div class="hint" style="margin-top:6px;">
+      Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), used with thanks.
+    </div>
   </div>
 
   <!-- ================= HOST WAIT ================= -->
@@ -293,11 +323,15 @@
       <div class="meta" id="roundMeta">Round 1</div>
     </div>
 
+    <div class="guide-toggle-bar">
+      <button class="btn-secondary" id="guideToggleBtn">📖 Yaku &amp; Deck Guide</button>
+    </div>
+
     <div class="banner hidden" id="turnBanner"></div>
 
     <div class="board">
       <div class="deck-pile">
-        <div class="card-back"></div>
+        <div class="card-back"><img src="images/back.png" alt="Card back" draggable="false"></div>
         <span id="deckCount">24</span> left
       </div>
       <div>
@@ -307,6 +341,13 @@
       <div>
         <div class="zone-label">Field</div>
         <div class="field-row" id="fieldRow"></div>
+      </div>
+      <div class="action-bar hidden" id="actionBar">
+        <div class="hint" id="actionBarText"></div>
+        <div class="row">
+          <button class="btn-primary" id="actionBarConfirmBtn">Confirm</button>
+          <button class="btn-secondary hidden" id="actionBarCancelBtn">Cancel</button>
+        </div>
       </div>
       <div>
         <div class="zone-label" id="myHandLabel">Your hand</div>
@@ -335,6 +376,7 @@
   <div class="modal">
     <h2 id="koikoiTitle">Yaku complete!</h2>
     <div class="yaku-list" id="koikoiYakuList"></div>
+    <div class="hint hidden" id="koikoiCapHint"></div>
     <div id="koikoiActions">
       <div class="row">
         <button class="btn-primary" id="koikoiBtn">Koi-Koi (keep going)</button>
@@ -361,17 +403,29 @@
   </div>
 </div>
 
+<div id="guideModal" class="overlay hidden">
+  <div class="modal" style="max-width:560px; text-align:left; max-height:82vh; overflow-y:auto;">
+    <h2 style="text-align:center;">📖 Yaku &amp; Deck Guide</h2>
+    <div class="guide-section">
+      <div class="guide-section-title">Yaku (scoring combinations)</div>
+      <div id="guideYakuList"></div>
+    </div>
+    <div class="guide-section">
+      <div class="guide-section-title">Full Deck (12 months × 4 cards)</div>
+      <div id="guideDeckGrid" class="guide-deck-grid"></div>
+    </div>
+    <div class="hint" style="margin-top:10px;">
+      Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), used with thanks.
+    </div>
+    <button class="btn-primary btn-block" id="guideCloseBtn" style="margin-top:14px;">Close</button>
+  </div>
+</div>
+
 <script>
 /* =====================================================================
    CORE GAME LOGIC (deck, dealing, yaku) — pure functions, no DOM
    ===================================================================== */
 const MONTH_NAMES = ['Pine','Plum','Cherry','Wisteria','Iris','Peony','Bush Clover','Pampas Grass','Chrysanthemum','Maple','Willow','Paulownia'];
-const ICONS = {
-  'Crane':'🦢','Bush Warbler':'🐦','Curtain':'🌸','Cuckoo':'🐦','Yatsuhashi Bridge':'🌉',
-  'Butterflies':'🦋','Boar':'🐗','Full Moon':'🌕','Geese':'🦢','Sake Cup':'🍶','Deer':'🦌',
-  'Rain Man':'☔','Swallow':'🐦','Lightning':'⚡','Phoenix':'🔥','Plain':'🍂',
-  'Poetry Ribbon':'🎗️','Red Ribbon':'🎗️','Blue Ribbon':'🎗️'
-};
 
 function buildDeck() {
   const defs = [
@@ -391,9 +445,10 @@ function buildDeck() {
   const deck = [];
   let id = 0;
   for (const [month, cards] of defs) {
-    for (const c of cards) {
-      deck.push({ id: id++, month, monthName: MONTH_NAMES[month-1], type: c.type, name: c.name, ribbon: c.ribbon || null });
-    }
+    cards.forEach((c, idx) => {
+      const mm = String(month).padStart(2, '0');
+      deck.push({ id: id++, month, monthName: MONTH_NAMES[month-1], type: c.type, name: c.name, ribbon: c.ribbon || null, img: `images/${mm}-${idx+1}.png` });
+    });
   }
   return deck;
 }
@@ -500,13 +555,15 @@ let myIndex = 0;       // 0 = host seat, 1 = guest seat
 let localHotseat = false;
 let myName = 'You', oppName = 'Opponent';
 let state = null;      // authoritative game state (host owns it; guest receives copies)
+let selectedHandCard = null; // local-only UI state: hand card the current player has tapped but not yet confirmed
+let guideOpen = false;        // local-only UI state: Yaku/Deck guide popup, default off
 
 function $(id) { return document.getElementById(id); }
 function show(id) { $(id).classList.remove('hidden'); }
 function hide(id) { $(id).classList.add('hidden'); }
 
 /* ---------- initial state / dealing ---------- */
-function createInitialState(numRounds, names) {
+function createInitialState(numRounds, names, maxKoikoiCalls) {
   return {
     round: 1, numRounds, dealer: 0,
     scores: [0, 0], names,
@@ -514,6 +571,7 @@ function createInitialState(numRounds, names) {
     log: [],
     deck: [], hands: [[],[]], field: [], captured: [[],[]],
     ackTotal: [0,0], koikoiCalls: 0, lastScorer: null,
+    maxKoikoiCalls: (typeof maxKoikoiCalls === 'number') ? maxKoikoiCalls : -1,
     turn: 1, pendingCaptureChoice: null, pendingKoikoi: null, roundResult: null
   };
 }
@@ -552,17 +610,14 @@ function applyAction(action, playerIdx) {
       const i = hand.findIndex(c => c.id === action.cardId);
       if (i === -1) return;
       const card = hand.splice(i, 1)[0];
-      resolvePlay(st, card, playerIdx, 'hand');
+      resolveHandPlay(st, card, playerIdx, action.chosenId);
       break;
     }
     case 'chooseCapture': {
       if (st.phase !== 'awaiting-capture-choice' || !st.pendingCaptureChoice || st.pendingCaptureChoice.player !== playerIdx) return;
       const pend = st.pendingCaptureChoice;
-      const fi = st.field.findIndex(c => c.id === action.chosenId);
-      if (fi === -1) return;
-      const chosen = st.field.splice(fi, 1)[0];
-      st.captured[playerIdx].push(chosen, pend.card);
-      addLog(st, `${st.names[playerIdx]} captured ${chosen.monthName} - ${chosen.name} with ${pend.card.name}.`);
+      const resolved = finalizeCapture(st, playerIdx, pend.card, pend.matches, action.chosenId);
+      if (!resolved) return;
       st.pendingCaptureChoice = null;
       st.phase = 'playing';
       if (pend.stage === 'hand') doDraw(st, playerIdx);
@@ -600,31 +655,54 @@ function applyAction(action, playerIdx) {
   }
 }
 
-function resolvePlay(st, card, playerIdx, stage) {
-  const matches = findMatches(card, st.field);
+// Attempts to finalize a card's resolution against the field, given an explicit
+// (already-decided) chosenId, or null/undefined if a choice is still needed.
+// Returns true if fully resolved (card placed on field / captured), false if it
+// still needs to wait for an explicit player choice.
+function finalizeCapture(st, playerIdx, card, matches, chosenId) {
   if (matches.length === 0) {
     st.field.push(card);
     addLog(st, `${st.names[playerIdx]} played ${card.monthName} - ${card.name} (no match).`);
-    if (stage === 'hand') doDraw(st, playerIdx);
-    else finishTurnCaptureCheck(st, playerIdx);
-  } else if (matches.length === 1) {
-    const m = matches[0];
-    st.field.splice(st.field.indexOf(m), 1);
-    st.captured[playerIdx].push(m, card);
-    addLog(st, `${st.names[playerIdx]} captured ${m.monthName} - ${m.name} with ${card.name}.`);
-    if (stage === 'hand') doDraw(st, playerIdx);
-    else finishTurnCaptureCheck(st, playerIdx);
-  } else if (matches.length >= 3) {
-    for (const m of matches) st.field.splice(st.field.indexOf(m), 1);
+    return true;
+  }
+  if (chosenId === null || typeof chosenId === 'undefined') return false;
+  const isValidChoice = matches.some(m => m.id === chosenId);
+  if (!isValidChoice) return false;
+  if (matches.length >= 3) {
+    for (const m of matches) {
+      const fi = st.field.findIndex(f => f.id === m.id);
+      if (fi !== -1) st.field.splice(fi, 1);
+    }
     st.captured[playerIdx].push(...matches, card);
     addLog(st, `${st.names[playerIdx]} swept ${matches.length} ${card.monthName} cards with ${card.name}!`);
-    if (stage === 'hand') doDraw(st, playerIdx);
-    else finishTurnCaptureCheck(st, playerIdx);
   } else {
-    // exactly 2 matches: player must choose
-    st.phase = 'awaiting-capture-choice';
-    st.pendingCaptureChoice = { player: playerIdx, card, matches, stage };
+    const fi = st.field.findIndex(f => f.id === chosenId);
+    const chosen = st.field.splice(fi, 1)[0];
+    st.captured[playerIdx].push(chosen, card);
+    addLog(st, `${st.names[playerIdx]} captured ${chosen.monthName} - ${chosen.name} with ${card.name}.`);
   }
+  return true;
+}
+
+// Hand-stage play: the client may already have decided (and pre-highlighted) the
+// chosenId locally before sending this action. If it's missing/invalid we fall
+// back to an explicit awaiting-capture-choice round trip.
+function resolveHandPlay(st, card, playerIdx, chosenId) {
+  const matches = findMatches(card, st.field);
+  if (finalizeCapture(st, playerIdx, card, matches, chosenId)) {
+    doDraw(st, playerIdx);
+  } else {
+    st.phase = 'awaiting-capture-choice';
+    st.pendingCaptureChoice = { player: playerIdx, card, matches, stage: 'hand' };
+  }
+}
+
+// Draw-stage reveal: the drawn card is not chosen by the player, so this always
+// waits for an explicit confirmation/choice (even with zero or one match).
+function resolveDrawReveal(st, card, playerIdx) {
+  const matches = findMatches(card, st.field);
+  st.phase = 'awaiting-capture-choice';
+  st.pendingCaptureChoice = { player: playerIdx, card, matches, stage: 'draw' };
 }
 
 function doDraw(st, playerIdx) {
@@ -633,15 +711,22 @@ function doDraw(st, playerIdx) {
     return;
   }
   const card = st.deck.shift();
-  resolvePlay(st, card, playerIdx, 'draw');
+  resolveDrawReveal(st, card, playerIdx);
 }
 
 function finishTurnCaptureCheck(st, playerIdx) {
   const yakuList = computeYaku(st.captured[playerIdx]);
   const pts = totalPoints(yakuList);
   if (pts > st.ackTotal[playerIdx]) {
-    st.phase = 'awaiting-koikoi';
-    st.pendingKoikoi = { player: playerIdx, yakuList, points: pts };
+    const capped = st.maxKoikoiCalls >= 0 && st.koikoiCalls >= st.maxKoikoiCalls;
+    if (capped) {
+      // Koi-Koi mode forbids further calls this round: this yaku forces an automatic Shobu.
+      addLog(st, `${st.names[playerIdx]} completed a yaku (Koi-Koi limit reached — round ends).`);
+      endRound(st, playerIdx, pts);
+    } else {
+      st.phase = 'awaiting-koikoi';
+      st.pendingKoikoi = { player: playerIdx, yakuList, points: pts };
+    }
   } else {
     checkHandsEmptyOrPassTurn(st, playerIdx);
   }
@@ -775,7 +860,8 @@ function joinGame() {
 
 function startGame() {
   const numRounds = parseInt($('roundsSelect').value, 10);
-  state = createInitialState(numRounds, [myName, oppName]);
+  const maxKoikoiCalls = parseInt($('koikoiModeSelect').value, 10);
+  state = createInitialState(numRounds, [myName, oppName], maxKoikoiCalls);
   dealNewRound(state);
   hide('hostWaitScreen');
   show('gameScreen');
@@ -790,7 +876,8 @@ function startHotseat() {
   localHotseat = true; isHost = true; myIndex = 0;
   oppName = 'Player 2';
   const numRounds = parseInt($('roundsSelect').value, 10);
-  state = createInitialState(numRounds, [myName, oppName]);
+  const maxKoikoiCalls = parseInt($('koikoiModeSelect').value, 10);
+  state = createInitialState(numRounds, [myName, oppName], maxKoikoiCalls);
   dealNewRound(state);
   hide('lobbyScreen');
   showPassScreen();
@@ -799,6 +886,7 @@ function startHotseat() {
 function showPassScreen() {
   hide('gameScreen');
   hotseatRevealed = false;
+  selectedHandCard = null;
   const seat = currentViewSeat();
   $('passWho').textContent = `${state.names[seat]}'s turn`;
   show('passScreen');
@@ -815,19 +903,61 @@ function currentViewSeat() {
    ===================================================================== */
 function cardHTML(card, extraClass) {
   const ribbonClass = card.type === 'ribbon' ? ' ' + card.ribbon : '';
-  const hue = (card.month - 1) * 30;
-  const icon = ICONS[card.name] || '❔';
-  return `<div class="card ${card.type}${ribbonClass} ${extraClass||''}" data-id="${card.id}" style="--hue:${hue}; background:hsl(${hue} 55% 30%);">
-    <div class="mn">${card.monthName}</div>
-    <div class="icon">${icon}</div>
-    <div class="nm">${card.name}</div>
+  return `<div class="card ${card.type}${ribbonClass} ${extraClass||''}" data-id="${card.id}" title="${card.monthName} - ${card.name}">
+    <img src="${card.img}" alt="${card.monthName} - ${card.name}" draggable="false">
   </div>`;
 }
 
 function miniCardHTML(card) {
-  const hue = (card.month - 1) * 30;
-  const icon = ICONS[card.name] || '❔';
-  return `<div class="mini-card" title="${card.monthName} - ${card.name}" style="background:hsl(${hue} 55% 30%);">${icon}</div>`;
+  return `<div class="mini-card" title="${card.monthName} - ${card.name}"><img src="${card.img}" alt="${card.monthName} - ${card.name}" draggable="false"></div>`;
+}
+
+const CAPTURE_GROUPS = [
+  { key: 'bright', label: 'Bright' },
+  { key: 'animal', label: 'Animal' },
+  { key: 'ribbon', label: 'Ribbon' },
+  { key: 'plain', label: 'Plain' },
+];
+
+function categorizedCaptureHTML(capturedList) {
+  return CAPTURE_GROUPS.map(g => {
+    const cards = capturedList.filter(c => c.type === g.key);
+    if (cards.length === 0) return '';
+    return `<div class="cap-group">
+      <div class="cap-group-label">${g.label} (${cards.length})</div>
+      <div class="capture-mini-row">${cards.map(miniCardHTML).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+const YAKU_REFERENCE = [
+  ['Goko — Five Brights', '10 pts', 'All 5 bright cards.'],
+  ['Shiko — Four Brights', '8 pts', '4 brights, not including Rain Man.'],
+  ['Ame-Shiko — Rainy Four Brights', '7 pts', '4 brights, including Rain Man.'],
+  ['Sanko — Three Brights', '5 pts', 'Any 3 bright cards.'],
+  ['Ino-Shika-Cho', '5 pts', 'Boar + Deer + Butterfly.'],
+  ['Tane — Animals', '1+ pts', '5+ animal cards (+1 per extra card).'],
+  ['Tanzaku — Ribbons', '1+ pts', '5+ ribbon cards (+1 per extra card).'],
+  ['Akatan — Red Poetry Ribbons', '5 pts', 'All 3 poetry ribbons.'],
+  ['Aotan — Blue Ribbons', '5 pts', 'All 3 blue ribbons.'],
+  ['Akatan + Aotan Bonus', '+5 pts', 'Both Akatan and Aotan completed.'],
+  ['Kasu — Plains', '1+ pts', '10+ plain cards (+1 per extra card).'],
+];
+
+let _guideDeckCache = null;
+function renderGuideModal() {
+  $('guideYakuList').innerHTML = YAKU_REFERENCE.map(([name, pts, desc]) =>
+    `<div class="guide-yaku-row"><div class="guide-yaku-head"><span>${name}</span><span>${pts}</span></div><div class="guide-yaku-desc">${desc}</div></div>`
+  ).join('');
+
+  if (!_guideDeckCache) _guideDeckCache = buildDeck();
+  const byMonth = {};
+  _guideDeckCache.forEach(c => { (byMonth[c.month] = byMonth[c.month] || []).push(c); });
+  $('guideDeckGrid').innerHTML = Object.keys(byMonth).sort((a, b) => a - b).map(m => {
+    const cards = byMonth[m];
+    return `<div class="guide-month"><div class="guide-month-label">${cards[0].monthName}</div>
+      <div class="guide-month-cards">${cards.map(miniCardHTML).join('')}</div></div>`;
+  }).join('');
 }
 
 function render() {
@@ -835,6 +965,8 @@ function render() {
 
   const viewSeat = localHotseat ? currentViewSeat() : myIndex;
   const oppSeat = 1 - viewSeat;
+  const canPlay = state.phase === 'playing' && state.turn === viewSeat;
+  if (!canPlay) selectedHandCard = null;
 
   $('nameA').textContent = state.names[viewSeat] + ' (you)';
   $('nameB').textContent = state.names[oppSeat];
@@ -842,48 +974,118 @@ function render() {
   $('scoreB').textContent = state.scores[oppSeat];
   $('sideA').classList.toggle('active', state.turn === viewSeat);
   $('sideB').classList.toggle('active', state.turn === oppSeat);
-  $('roundMeta').textContent = `Round ${state.round} / ${state.numRounds}`;
+  const kkLabel = state.maxKoikoiCalls < 0 ? 'Unlimited Koi-Koi'
+    : state.maxKoikoiCalls === 0 ? 'No Koi-Koi'
+    : `Max ${state.maxKoikoiCalls} Koi-Koi`;
+  $('roundMeta').textContent = `Round ${state.round} / ${state.numRounds} · ${kkLabel}`;
   $('deckCount').textContent = state.deck.length;
 
   // opponent hand (face down)
   $('oppHandLabel').textContent = `${state.names[oppSeat]}'s hand (${state.hands[oppSeat].length})`;
-  $('oppHandRow').innerHTML = state.hands[oppSeat].map(() => `<div class="card-back"></div>`).join('');
+  $('oppHandRow').innerHTML = state.hands[oppSeat].map(() => `<div class="card-back"><img src="images/back.png" alt="Card back" draggable="false"></div>`).join('');
 
-  // field
-  let clickableFieldIds = [];
-  let disabledPickIds = [];
+  // field + action bar
+  let fieldMatchIds = [];             // clickable now — confirms a capture
+  let fieldDimIds = [];                // present but not part of the current choice
+  let fieldPassiveHighlightIds = [];   // informational: matched by *some* hand card
+  let fieldClickHandler = null;
+  let actionBarMode = null;            // { kind: 'confirm-local'|'confirm-remote', card }
+
   if (state.phase === 'awaiting-capture-choice' && state.pendingCaptureChoice) {
     const pend = state.pendingCaptureChoice;
-    if (pend.player === viewSeat) clickableFieldIds = pend.matches.map(m => m.id);
-    else disabledPickIds = pend.matches.map(m => m.id);
+    if (pend.player === viewSeat) {
+      if (pend.matches.length > 0) {
+        fieldMatchIds = pend.matches.map(m => m.id);
+        fieldClickHandler = (cardId) => sendAction({ type: 'chooseCapture', chosenId: cardId });
+      } else {
+        actionBarMode = { kind: 'confirm-remote', card: pend.card };
+      }
+    } else {
+      fieldDimIds = pend.matches.map(m => m.id);
+    }
+  } else if (canPlay) {
+    if (selectedHandCard) {
+      const matches = findMatches(selectedHandCard, state.field);
+      if (matches.length > 0) {
+        fieldMatchIds = matches.map(m => m.id);
+        fieldDimIds = state.field.filter(c => !fieldMatchIds.includes(c.id)).map(c => c.id);
+        fieldClickHandler = (cardId) => {
+          sendAction({ type: 'playHand', cardId: selectedHandCard.id, chosenId: cardId });
+          selectedHandCard = null;
+        };
+      } else {
+        actionBarMode = { kind: 'confirm-local', card: selectedHandCard };
+      }
+    } else {
+      const anySet = new Set();
+      state.hands[viewSeat].forEach(hc => findMatches(hc, state.field).forEach(fc => anySet.add(fc.id)));
+      fieldPassiveHighlightIds = [...anySet];
+    }
   }
+
   $('fieldRow').innerHTML = state.field.map(c => {
     let cls = '';
-    if (clickableFieldIds.includes(c.id)) cls = 'clickable selectable';
-    else if (disabledPickIds.includes(c.id)) cls = 'disabled-pick';
+    if (fieldMatchIds.includes(c.id)) cls = 'clickable selectable';
+    else if (fieldDimIds.includes(c.id)) cls = (state.phase === 'awaiting-capture-choice') ? 'disabled-pick' : 'dimmed';
+    else if (fieldPassiveHighlightIds.includes(c.id)) cls = 'has-match';
     return cardHTML(c, cls);
   }).join('');
-  if (clickableFieldIds.length) {
+  if (fieldClickHandler) {
     $('fieldRow').querySelectorAll('.card.selectable').forEach(el => {
-      el.onclick = () => sendAction({ type: 'chooseCapture', chosenId: parseInt(el.dataset.id, 10) });
+      el.onclick = () => fieldClickHandler(parseInt(el.dataset.id, 10));
     });
+  }
+
+  if (actionBarMode) {
+    show('actionBar');
+    const card = actionBarMode.card;
+    $('actionBarText').textContent = `No match for ${card.monthName} - ${card.name}. Place it on the field?`;
+    $('actionBarConfirmBtn').onclick = () => {
+      if (actionBarMode.kind === 'confirm-local') {
+        sendAction({ type: 'playHand', cardId: card.id, chosenId: null });
+        selectedHandCard = null;
+      } else {
+        sendAction({ type: 'chooseCapture', chosenId: null });
+      }
+    };
+    if (actionBarMode.kind === 'confirm-local') {
+      show('actionBarCancelBtn');
+      $('actionBarCancelBtn').onclick = () => { selectedHandCard = null; render(); };
+    } else {
+      hide('actionBarCancelBtn');
+    }
+  } else {
+    hide('actionBar');
   }
 
   // my hand
-  const canPlay = state.phase === 'playing' && state.turn === viewSeat;
   $('myHandLabel').textContent = `${state.names[viewSeat]}'s hand`;
-  $('myHandRow').innerHTML = state.hands[viewSeat].map(c => cardHTML(c, canPlay ? 'clickable' : '')).join('');
+  $('myHandRow').innerHTML = state.hands[viewSeat].map(c => {
+    let cls = '';
+    if (canPlay) {
+      cls = 'clickable';
+      if (selectedHandCard && selectedHandCard.id === c.id) cls += ' selected';
+      else if (findMatches(c, state.field).length > 0) cls += ' has-match';
+    }
+    return cardHTML(c, cls);
+  }).join('');
   if (canPlay) {
     $('myHandRow').querySelectorAll('.card').forEach(el => {
-      el.onclick = () => sendAction({ type: 'playHand', cardId: parseInt(el.dataset.id, 10) });
+      el.onclick = () => {
+        const id = parseInt(el.dataset.id, 10);
+        selectedHandCard = (selectedHandCard && selectedHandCard.id === id)
+          ? null
+          : (state.hands[viewSeat].find(c => c.id === id) || null);
+        render();
+      };
     });
   }
 
-  // capture piles
+  // capture piles (categorized)
   $('capTitleA').textContent = `${state.names[viewSeat]}'s captures`;
   $('capTitleB').textContent = `${state.names[oppSeat]}'s captures`;
-  $('capRowA').innerHTML = state.captured[viewSeat].map(miniCardHTML).join('');
-  $('capRowB').innerHTML = state.captured[oppSeat].map(miniCardHTML).join('');
+  $('capRowA').innerHTML = categorizedCaptureHTML(state.captured[viewSeat]);
+  $('capRowB').innerHTML = categorizedCaptureHTML(state.captured[oppSeat]);
   const myYakuPts = totalPoints(computeYaku(state.captured[viewSeat]));
   const oppYakuPts = totalPoints(computeYaku(state.captured[oppSeat]));
   $('capYakuA').textContent = myYakuPts > 0 ? `${myYakuPts} pts` : '';
@@ -893,11 +1095,28 @@ function render() {
   const banner = $('turnBanner');
   if (state.phase === 'playing') {
     banner.classList.remove('hidden');
-    banner.textContent = state.turn === viewSeat ? 'Your turn — play a card from your hand.' : `Waiting for ${state.names[oppSeat]}…`;
+    if (state.turn === viewSeat) {
+      if (selectedHandCard) {
+        const matches = findMatches(selectedHandCard, state.field);
+        banner.textContent = matches.length > 0
+          ? `Choose a highlighted field card to capture with ${selectedHandCard.name}.`
+          : `No match — confirm below to place ${selectedHandCard.name} on the field.`;
+      } else {
+        banner.textContent = 'Your turn — select a card from your hand to play.';
+      }
+    } else {
+      banner.textContent = `Waiting for ${state.names[oppSeat]}…`;
+    }
   } else if (state.phase === 'awaiting-capture-choice') {
     banner.classList.remove('hidden');
     const pend = state.pendingCaptureChoice;
-    banner.textContent = pend.player === viewSeat ? 'Choose which field card to capture.' : `${state.names[oppSeat]} is choosing a card to capture…`;
+    if (pend.player === viewSeat) {
+      banner.textContent = pend.matches.length > 0
+        ? `Choose which field card to capture with ${pend.card.name}.`
+        : `No match — confirm below to place ${pend.card.name} on the field.`;
+    } else {
+      banner.textContent = `${state.names[oppSeat]} is resolving their move…`;
+    }
   } else {
     banner.classList.add('hidden');
   }
@@ -918,6 +1137,14 @@ function renderKoikoiModal(viewSeat) {
   $('koikoiTitle').textContent = pend.player === viewSeat ? 'You completed a yaku!' : `${state.names[pend.player]} completed a yaku!`;
   $('koikoiYakuList').innerHTML = pend.yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
     + `<div class="yaku-total"><span>Total</span><span>${pend.points}</span></div>`;
+  const capHint = $('koikoiCapHint');
+  if (state.maxKoikoiCalls >= 0) {
+    const remaining = state.maxKoikoiCalls - state.koikoiCalls;
+    capHint.textContent = remaining === 1 ? 'This is your last allowed Koi-Koi call this round.' : `Koi-Koi calls remaining this round: ${remaining}`;
+    capHint.classList.remove('hidden');
+  } else {
+    capHint.classList.add('hidden');
+  }
   if (pend.player === viewSeat) {
     show('koikoiActions'); hide('koikoiWaiting');
     $('koikoiBtn').onclick = () => sendAction({ type: 'koikoiChoice', choice: 'koikoi' });
@@ -987,6 +1214,11 @@ $('passReadyBtn').onclick = () => {
   show('gameScreen');
   render();
 };
+$('guideToggleBtn').onclick = () => {
+  guideOpen = !guideOpen;
+  if (guideOpen) { renderGuideModal(); show('guideModal'); } else { hide('guideModal'); }
+};
+$('guideCloseBtn').onclick = () => { guideOpen = false; hide('guideModal'); };
 
 // intercept render() calls to route through pass-screen in hotseat mode when turn changes
 const _render = render;

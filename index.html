@@ -163,6 +163,19 @@
 
   .banner { text-align:center; font-size: 14px; padding: 10px; border-radius: 8px; background: rgba(246,201,69,.12); color: var(--accent); }
 
+  .conn-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    background: var(--danger); color: white; text-align:center;
+    padding: 10px; font-size: 13px; font-weight: 600;
+  }
+
+  .resume-banner {
+    background: rgba(89,193,90,.12); border: 1px solid var(--accent2); border-radius: var(--radius);
+    padding: 18px; width:100%; max-width:520px; margin-bottom: 14px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .resume-banner #resumeBannerText { font-size: 14px; color: var(--ink); text-align:center; }
+
   .dealer-draw-cards { display:flex; gap:28px; justify-content:center; align-items:flex-start; flex-wrap:wrap; margin: 6px 0 4px; }
   .dealer-draw-col { display:flex; flex-direction:column; align-items:center; gap:7px; }
   .dealer-draw-name { font-size:13px; color: var(--muted); font-weight:600; }
@@ -226,10 +239,20 @@
 <body>
 <div id="app">
 
+  <div class="conn-banner hidden" id="connBanner"></div>
+
   <!-- ================= LOBBY ================= -->
   <div id="lobbyScreen">
     <h1>🎴 Koi-Koi <span class="jp">こいこい</span></h1>
     <div class="subtitle">Two-player Hanafuda card game — play online with a friend on their own device, or pass-and-play together on one.</div>
+
+    <div class="resume-banner hidden" id="resumeBanner">
+      <div id="resumeBannerText">You have a game in progress.</div>
+      <div class="row">
+        <button class="btn-primary" id="resumeBtn">Resume Game</button>
+        <button class="btn-secondary" id="discardSessionBtn">Start Fresh</button>
+      </div>
+    </div>
 
     <div class="card-panel">
       <div>
@@ -582,9 +605,34 @@ let state = null;      // authoritative game state (host owns it; guest receives
 let selectedHandCard = null; // local-only UI state: hand card the current player has tapped but not yet confirmed
 let guideOpen = false;        // local-only UI state: Yaku/Deck guide popup, default off
 
+let hostPeerId = null;      // stable custom Peer ID for the host, persisted so a refresh can reclaim the same room code
+let lastJoinedCode = null;  // room code the guest connected with, so a refresh can reconnect
+let oppConnected = true;    // network link status (online modes only) — drives the disconnect banner
+let reconnectTimer = null;
+
 function $(id) { return document.getElementById(id); }
 function show(id) { $(id).classList.remove('hidden'); }
 function hide(id) { $(id).classList.add('hidden'); }
+
+/* ---------- session persistence (survive a page refresh) ---------- */
+const SESSION_KEY = 'koikoi_session_v1';
+function saveSession() {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      localHotseat, isHost, myIndex, myName, oppName,
+      hostPeerId, lastJoinedCode, state
+    }));
+  } catch (e) { /* storage unavailable (private mode, quota, etc) — resuming just won't work */ }
+}
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
 
 /* ---------- initial state / dealing ---------- */
 function createInitialState(numRounds, names, maxKoikoiCalls) {
@@ -848,6 +896,7 @@ function handleMessage(msg) {
     oppName = msg.name || 'Opponent';
     $('hostWaitStatus').textContent = `${oppName} joined!`;
     show('startGameBtn');
+    saveSession();
   } else if (msg.t === 'action') {
     applyAction(msg.action, 1);
     broadcastState();
@@ -862,32 +911,74 @@ function handleMessage(msg) {
   }
 }
 
+// Non-blocking connection-status banner (replaces the old alert() on disconnect) —
+// a dropped connection shouldn't feel like "the game is gone forever".
+function setConnBannerVisible(visible, text) {
+  const el = $('connBanner');
+  if (!el) return;
+  if (text) el.textContent = text;
+  el.classList.toggle('hidden', !visible);
+}
+
 function setupConnection() {
   conn.on('open', () => {
+    oppConnected = true;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    setConnBannerVisible(false);
     if (!isHost) {
       conn.send({ t: 'hello', name: myName });
     } else if (state) {
       broadcastState();
     }
+    if (state) render();
   });
   conn.on('data', handleMessage);
   conn.on('close', () => {
-    alert('Connection to opponent was lost.');
+    oppConnected = false;
+    if (localHotseat) return;
+    if (isHost) {
+      // Host keeps listening — peer.on('connection') is still registered,
+      // so the guest reconnecting (even from a fresh refresh) will just work.
+      setConnBannerVisible(true, `⚠️ ${oppName || 'Opponent'} disconnected — waiting for them to reconnect…`);
+    } else {
+      setConnBannerVisible(true, '⚠️ Lost connection to host — trying to reconnect…');
+      attemptGuestReconnect(0);
+    }
   });
   conn.on('error', (err) => {
     console.error(err);
   });
 }
 
+// Guest-side auto-reconnect: retries a handful of times with a short delay,
+// since the host may simply be mid-refresh themselves.
+function attemptGuestReconnect(tries) {
+  if (tries >= 10 || !lastJoinedCode || isHost) return;
+  reconnectTimer = setTimeout(() => {
+    if (oppConnected) return;
+    try {
+      conn = peer.connect(lastJoinedCode, { reliable: true });
+      setupConnection();
+    } catch (e) { /* ignore, we'll just retry again */ }
+    if (!oppConnected) attemptGuestReconnect(tries + 1);
+  }, 2500);
+}
+
+function generateRoomCode() {
+  return 'kk-' + Math.random().toString(36).slice(2, 8);
+}
+
 function hostGame() {
   myName = $('nameInput').value.trim() || 'Host';
-  isHost = true; myIndex = 0;
+  isHost = true; myIndex = 0; localHotseat = false;
   hide('lobbyScreen'); show('hostWaitScreen');
   $('hostWaitStatus').textContent = 'Setting up room…';
-  peer = new Peer();
+  hostPeerId = generateRoomCode();
+  peer = new Peer(hostPeerId);
   peer.on('open', (id) => {
     $('roomCodeDisplay').textContent = id;
     $('hostWaitStatus').textContent = 'Waiting for someone to join…';
+    saveSession();
   });
   peer.on('connection', (c) => {
     conn = c;
@@ -902,7 +993,8 @@ function joinGame() {
   const code = $('joinCodeInput').value.trim();
   if (!code) return;
   myName = $('nameInput').value.trim() || 'Guest';
-  isHost = false; myIndex = 1;
+  isHost = false; myIndex = 1; localHotseat = false;
+  lastJoinedCode = code;
   hide('lobbyScreen'); show('joinWaitScreen');
   $('joinWaitStatus').textContent = 'Connecting to host…';
   peer = new Peer();
@@ -910,6 +1002,7 @@ function joinGame() {
     conn = peer.connect(code, { reliable: true });
     setupConnection();
     $('joinWaitStatus').textContent = 'Connected! Waiting for host to start the game…';
+    saveSession();
   });
   peer.on('error', (err) => {
     $('joinWaitStatus').textContent = 'Error: ' + err.type;
@@ -940,6 +1033,96 @@ function startHotseat() {
   hide('lobbyScreen');
   show('dealerDrawScreen');
   render();
+}
+
+/* ---------- resume-after-refresh ---------- */
+// Called once on page load. If a saved session exists (and the game it describes
+// hasn't already ended), show a banner on the lobby offering to jump back in
+// instead of silently losing progress to a refresh.
+function tryOfferResume() {
+  const saved = loadSession();
+  if (!saved || (saved.state && saved.state.phase === 'game-end')) return;
+  show('resumeBanner');
+  const roundInfo = saved.state ? ` (Round ${saved.state.round}/${saved.state.numRounds})` : '';
+  $('resumeBannerText').textContent = saved.localHotseat
+    ? `You have a Pass-and-Play game in progress${roundInfo}.`
+    : saved.isHost
+      ? `You have a hosted game in progress${roundInfo}.`
+      : `You have a joined game in progress${roundInfo}.`;
+  $('resumeBtn').onclick = () => performResume(saved);
+  $('discardSessionBtn').onclick = () => { clearSession(); hide('resumeBanner'); };
+}
+
+// Reconstructs peer/conn/screen state from a saved session. Three branches:
+// hotseat (just restore state and land on the safe pass-screen), host (reclaim
+// the stable custom Peer ID so the room code still works), guest (reconnect
+// with a fresh random ID to the same room code — the host will resync state).
+function performResume(saved) {
+  localHotseat = saved.localHotseat;
+  isHost = saved.isHost;
+  myIndex = saved.myIndex;
+  myName = saved.myName;
+  oppName = saved.oppName;
+  hostPeerId = saved.hostPeerId;
+  lastJoinedCode = saved.lastJoinedCode;
+  state = saved.state;
+
+  hide('resumeBanner');
+  hide('lobbyScreen');
+
+  if (localHotseat) {
+    if (!state) { clearSession(); show('lobbyScreen'); return; }
+    show('gameScreen');
+    if (state.phase === 'dealer-draw' || state.phase === 'game-end') {
+      render();
+    } else {
+      _lastSeatShown = null;
+      showPassScreen();
+    }
+    return;
+  }
+
+  if (isHost) {
+    show('hostWaitScreen');
+    $('hostWaitStatus').textContent = state ? 'Reconnecting…' : 'Waiting for someone to join…';
+    peer = new Peer(hostPeerId);
+    peer.on('open', (id) => {
+      $('roomCodeDisplay').textContent = id;
+      if (state) {
+        hide('hostWaitScreen');
+        show('gameScreen');
+        render();
+      }
+      saveSession();
+    });
+    peer.on('connection', (c) => {
+      conn = c;
+      setupConnection();
+    });
+    peer.on('error', (err) => {
+      $('hostWaitStatus').textContent = 'Error: ' + err.type;
+    });
+    return;
+  }
+
+  // guest
+  show('joinWaitScreen');
+  $('joinWaitStatus').textContent = 'Reconnecting to host…';
+  peer = new Peer();
+  peer.on('open', () => {
+    conn = peer.connect(lastJoinedCode, { reliable: true });
+    setupConnection();
+    if (state) {
+      hide('joinWaitScreen');
+      show('gameScreen');
+      render();
+    } else {
+      $('joinWaitStatus').textContent = 'Connected! Waiting for host to start the game…';
+    }
+  });
+  peer.on('error', (err) => {
+    $('joinWaitStatus').textContent = 'Error: ' + err.type;
+  });
 }
 
 function showPassScreen() {
@@ -1054,6 +1237,11 @@ function render() {
     return;
   }
   hide('dealerDrawScreen');
+  // Online (host/guest) mode has no privacy screen gating gameplay, so once
+  // dealing is done the game board should just be visible. Hotseat keeps
+  // gameScreen hidden here on purpose — the pass-screen flow (showPassScreen /
+  // passReadyBtn) is what reveals it there, to protect hand privacy.
+  if (!localHotseat) show('gameScreen');
 
   const viewSeat = localHotseat ? currentViewSeat() : myIndex;
   const oppSeat = 1 - viewSeat;
@@ -1301,7 +1489,7 @@ function renderGameEndModal(viewSeat) {
   else msg = `${state.names[a > b ? 0 : 1]} wins, ${Math.max(a,b)} — ${Math.min(a,b)}!`;
   $('gameEndTitle').textContent = 'Game Over';
   $('gameEndBody').innerHTML = `<div style="text-align:center; font-size:15px;">${msg}</div>`;
-  $('newGameBtn').onclick = () => location.reload();
+  $('newGameBtn').onclick = () => { clearSession(); location.reload(); };
 }
 
 /* =====================================================================
@@ -1317,8 +1505,8 @@ $('copyCodeBtn').onclick = () => {
   setTimeout(() => $('copyCodeBtn').textContent = 'Copy Code', 1200);
 };
 $('startGameBtn').onclick = startGame;
-$('cancelHostBtn').onclick = () => location.reload();
-$('cancelJoinBtn').onclick = () => location.reload();
+$('cancelHostBtn').onclick = () => { clearSession(); location.reload(); };
+$('cancelJoinBtn').onclick = () => { clearSession(); location.reload(); };
 $('passReadyBtn').onclick = () => {
   hide('passScreen');
   show('gameScreen');
@@ -1338,10 +1526,12 @@ $('guideToggleBtn').onclick = () => {
 };
 $('guideCloseBtn').onclick = () => { guideOpen = false; hide('guideModal'); };
 
-// intercept render() calls to route through pass-screen in hotseat mode when turn changes
+// intercept render() calls to route through pass-screen in hotseat mode when turn changes,
+// and to persist state to localStorage on every render so a refresh mid-game can resume.
 const _render = render;
 let _lastSeatShown = null;
 render = function() {
+  saveSession();
   if (localHotseat && state) {
     const seat = currentViewSeat();
     if (_lastSeatShown !== null && seat !== _lastSeatShown && state.phase !== 'game-end' && $('gameScreen') && !$('gameScreen').classList.contains('hidden')) {
@@ -1353,6 +1543,9 @@ render = function() {
   }
   _render();
 };
+
+// Offer to resume a saved session, if any, once the lobby is ready.
+tryOfferResume();
 </script>
 </body>
 </html>

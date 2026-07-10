@@ -27,7 +27,7 @@
     overscroll-behavior-y: contain;
   }
   #app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; width: 100%; }
-  #lobbyScreen, #hostWaitScreen, #joinWaitScreen, #passScreen, #gameScreen {
+  #lobbyScreen, #hostWaitScreen, #joinWaitScreen, #passScreen, #gameScreen, #dealerDrawScreen {
     display: flex; flex-direction: column; align-items: center; width: 100%;
   }
   h1 { font-size: 30px; margin: 4px 0 2px; letter-spacing: 0.5px; }
@@ -137,6 +137,10 @@
   .action-bar .row { justify-content: center; }
   .action-bar .row > * { flex: 0 1 210px; }
 
+  .drawn-card-zone { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .drawn-card-zone .zone-label { margin-bottom: 0; }
+  .drawn-card-row { display:flex; justify-content:center; }
+
   .guide-toggle-bar { display:flex; justify-content:center; }
   .guide-toggle-bar button { padding: 8px 18px; min-height: 38px; font-size: 13px; }
   .guide-section { margin-top: 16px; }
@@ -158,6 +162,12 @@
   .log-panel div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
 
   .banner { text-align:center; font-size: 14px; padding: 10px; border-radius: 8px; background: rgba(246,201,69,.12); color: var(--accent); }
+
+  .dealer-draw-cards { display:flex; gap:28px; justify-content:center; align-items:flex-start; flex-wrap:wrap; margin: 6px 0 4px; }
+  .dealer-draw-col { display:flex; flex-direction:column; align-items:center; gap:7px; }
+  .dealer-draw-name { font-size:13px; color: var(--muted); font-weight:600; }
+  .dealer-draw-month { font-size:13px; color: var(--ink); }
+  .dealer-draw-badge { background: var(--accent); color:#23180a; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; }
 
   /* modal */
   .overlay {
@@ -306,6 +316,17 @@
     </div>
   </div>
 
+  <!-- ================= DEALER DRAW ================= -->
+  <div id="dealerDrawScreen" class="hidden">
+    <h1>🎴 Drawing for dealer…</h1>
+    <div class="card-panel" style="align-items:center;">
+      <div class="hint">Each player draws one card. Earliest month becomes dealer and goes first.</div>
+      <div class="dealer-draw-cards" id="dealerDrawCards"></div>
+      <div class="status-line" id="dealerDrawResultText"></div>
+      <button class="btn-primary btn-block" id="dealerDrawContinueBtn">Continue</button>
+    </div>
+  </div>
+
   <!-- ================= GAME ================= -->
   <div id="gameScreen" class="hidden">
     <div class="topbar">
@@ -340,6 +361,10 @@
       <div>
         <div class="zone-label">Field</div>
         <div class="field-row" id="fieldRow"></div>
+      </div>
+      <div class="drawn-card-zone hidden" id="drawnCardZone">
+        <div class="zone-label" id="drawnCardLabel">Card drawn</div>
+        <div class="drawn-card-row" id="drawnCardRow"></div>
       </div>
       <div class="action-bar hidden" id="actionBar">
         <div class="hint" id="actionBarText"></div>
@@ -575,7 +600,10 @@ function createInitialState(numRounds, names, maxKoikoiCalls) {
   };
 }
 
-function dealNewRound(st) {
+// `starter` (optional): which seat goes first this round. Round 1 omits it and
+// falls back to st.dealer (set by the dealer draw). Round 2+ passes in the
+// previous round's winner, per the "winner goes first" convention.
+function dealNewRound(st, starter) {
   const seed = Math.floor(Math.random() * 2**31);
   const { deck, handA, handB, field } = dealRound(seed);
   st.deck = deck;
@@ -585,12 +613,30 @@ function dealNewRound(st) {
   st.ackTotal = [0, 0];
   st.koikoiCalls = 0;
   st.lastScorer = null;
-  st.turn = 1 - st.dealer;
+  st.turn = (starter === 0 || starter === 1) ? starter : st.dealer;
   st.pendingCaptureChoice = null;
   st.pendingKoikoi = null;
   st.roundResult = null;
   st.phase = 'playing';
   addLog(st, `Round ${st.round} dealt. ${st.names[st.turn]} goes first.`);
+}
+
+// Traditional dealer draw: both players blindly draw one card. Earliest month
+// (Jan/Pine = 1) becomes dealer and goes first. Ties (same month) redraw.
+function performDealerDraw(st) {
+  let cards;
+  let attempts = 0;
+  do {
+    const rng = mulberry32(Math.floor(Math.random() * 2**31));
+    const shuffled = shuffle(buildDeck(), rng);
+    cards = [shuffled[0], shuffled[1]];
+    attempts++;
+  } while (cards[0].month === cards[1].month && attempts < 50);
+  const dealer = cards[0].month < cards[1].month ? 0 : 1;
+  st.dealer = dealer;
+  st.dealerDraw = { cards, dealer };
+  st.phase = 'dealer-draw';
+  addLog(st, `${st.names[0]} drew ${cards[0].monthName}, ${st.names[1]} drew ${cards[1].monthName} — ${st.names[dealer]} is the dealer and goes first.`);
 }
 
 function addLog(st, msg) {
@@ -644,10 +690,23 @@ function applyAction(action, playerIdx) {
       if (st.round >= st.numRounds) {
         st.phase = 'game-end';
       } else {
+        const prevWinner = st.roundResult && st.roundResult.winner;
         st.round += 1;
-        st.dealer = 1 - st.dealer;
-        dealNewRound(st);
+        if (prevWinner === 0 || prevWinner === 1) {
+          // Winner of the previous round goes first.
+          dealNewRound(st, prevWinner);
+        } else {
+          // No yaku scored last round (a draw) — nobody "won", so rotate the
+          // fallback starter instead of always giving it to the same player.
+          st.dealer = 1 - st.dealer;
+          dealNewRound(st);
+        }
       }
+      break;
+    }
+    case 'confirmDealerDraw': {
+      if (st.phase !== 'dealer-draw') return;
+      dealNewRound(st);
       break;
     }
     default: break;
@@ -861,9 +920,9 @@ function startGame() {
   const numRounds = parseInt($('roundsSelect').value, 10);
   const maxKoikoiCalls = parseInt($('koikoiModeSelect').value, 10);
   state = createInitialState(numRounds, [myName, oppName], maxKoikoiCalls);
-  dealNewRound(state);
+  performDealerDraw(state);
   hide('hostWaitScreen');
-  show('gameScreen');
+  show('dealerDrawScreen');
   broadcastState();
   render();
 }
@@ -877,9 +936,10 @@ function startHotseat() {
   const numRounds = parseInt($('roundsSelect').value, 10);
   const maxKoikoiCalls = parseInt($('koikoiModeSelect').value, 10);
   state = createInitialState(numRounds, [myName, oppName], maxKoikoiCalls);
-  dealNewRound(state);
+  performDealerDraw(state);
   hide('lobbyScreen');
-  showPassScreen();
+  show('dealerDrawScreen');
+  render();
 }
 
 function showPassScreen() {
@@ -968,8 +1028,32 @@ function renderGuideModal() {
   }).join('');
 }
 
+function renderDealerDrawScreen() {
+  const d = state.dealerDraw;
+  if (!d) return;
+  $('dealerDrawCards').innerHTML = d.cards.map((c, i) => {
+    const isDealer = d.dealer === i;
+    return `<div class="dealer-draw-col">
+      <div class="dealer-draw-name">${state.names[i]}</div>
+      ${cardHTML(c)}
+      <div class="dealer-draw-month">${c.monthName} (${c.month})</div>
+      ${isDealer ? '<div class="dealer-draw-badge">Dealer</div>' : ''}
+    </div>`;
+  }).join('');
+  $('dealerDrawResultText').textContent = `${state.names[d.dealer]} drew the earliest month and goes first.`;
+}
+
 function render() {
   if (!state) return;
+
+  if (state.phase === 'dealer-draw') {
+    hide('gameScreen');
+    hide('passScreen');
+    show('dealerDrawScreen');
+    renderDealerDrawScreen();
+    return;
+  }
+  hide('dealerDrawScreen');
 
   const viewSeat = localHotseat ? currentViewSeat() : myIndex;
   const oppSeat = 1 - viewSeat;
@@ -998,9 +1082,13 @@ function render() {
   let fieldPassiveHighlightIds = [];   // informational: matched by *some* hand card
   let fieldClickHandler = null;
   let actionBarMode = null;            // { kind: 'confirm-local'|'confirm-remote', card }
+  let pendingCardInfo = null;           // visible card of a capture choice in progress (drawn or played)
 
   if (state.phase === 'awaiting-capture-choice' && state.pendingCaptureChoice) {
     const pend = state.pendingCaptureChoice;
+    const who = pend.player === viewSeat ? 'You' : state.names[oppSeat];
+    const verb = pend.stage === 'draw' ? 'drew' : 'played';
+    pendingCardInfo = { card: pend.card, hasMatch: pend.matches.length > 0, label: `${who} ${verb}` };
     if (pend.player === viewSeat) {
       if (pend.matches.length > 0) {
         fieldMatchIds = pend.matches.map(m => m.id);
@@ -1042,6 +1130,14 @@ function render() {
     $('fieldRow').querySelectorAll('.card.selectable').forEach(el => {
       el.onclick = () => fieldClickHandler(parseInt(el.dataset.id, 10));
     });
+  }
+
+  if (pendingCardInfo) {
+    show('drawnCardZone');
+    $('drawnCardLabel').textContent = pendingCardInfo.label;
+    $('drawnCardRow').innerHTML = cardHTML(pendingCardInfo.card, pendingCardInfo.hasMatch ? 'has-match' : '');
+  } else {
+    hide('drawnCardZone');
   }
 
   if (actionBarMode) {
@@ -1221,6 +1317,14 @@ $('passReadyBtn').onclick = () => {
   hide('passScreen');
   show('gameScreen');
   render();
+};
+$('dealerDrawContinueBtn').onclick = () => {
+  if (localHotseat) {
+    sendAction({ type: 'confirmDealerDraw' });
+    showPassScreen();
+  } else {
+    sendAction({ type: 'confirmDealerDraw' });
+  }
 };
 $('guideToggleBtn').onclick = () => {
   guideOpen = !guideOpen;

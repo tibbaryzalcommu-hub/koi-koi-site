@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koi-Koi — Online Hanafuda</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+  :root {
+    --bg: #14181f;
+    --panel: #1e2530;
+    --panel2: #262f3d;
+    --ink: #eef1f6;
+    --muted: #9aa5b5;
+    --accent: #f6c945;
+    --accent2: #59c15a;
+    --danger: #e0575f;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: radial-gradient(circle at 50% 0%, #1b2431, #0e1117 70%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+    overscroll-behavior-y: contain;
+  }
+  #app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; width: 100%; }
+  h1 { font-size: 22px; margin: 4px 0 2px; letter-spacing: 0.5px; }
+  h1 .jp { color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 18px; text-align:center; }
+  .hidden { display: none !important; }
+
+  .card-panel {
+    background: var(--panel); border-radius: var(--radius); padding: 22px;
+    width: 100%; max-width: 460px; box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .card-panel h2 { margin: 0 0 4px; font-size: 16px; color: var(--accent); }
+  label { font-size: 12px; color: var(--muted); display:block; margin-bottom:4px; }
+  input[type=text], select {
+    width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #384354;
+    background: #0f141c; color: var(--ink); font-size: 16px;
+  }
+  button {
+    padding: 12px 16px; border-radius: 8px; border: none; cursor: pointer;
+    font-size: 15px; font-weight: 600; transition: transform .05s ease, opacity .15s;
+    touch-action: manipulation; min-height: 44px;
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #23180a; }
+  .btn-secondary { background: #384354; color: var(--ink); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-block { width: 100%; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .divider { border-top: 1px solid #313d4e; margin: 6px 0; text-align:center; position:relative; }
+  .divider span { position:absolute; top:-9px; left:50%; transform:translateX(-50%); background:var(--panel); padding:0 10px; color:var(--muted); font-size:11px; }
+
+  .code-display {
+    font-size: 26px; letter-spacing: 3px; font-weight: 700; text-align: center;
+    background: #0f141c; border: 1px dashed var(--accent); border-radius: 8px; padding: 14px;
+    color: var(--accent); word-break: break-all;
+  }
+  .hint { font-size: 12px; color: var(--muted); text-align:center; }
+  .status-line { font-size: 13px; color: var(--accent2); text-align:center; min-height: 18px; }
+
+  details.help { width: 100%; max-width: 460px; margin-top: 4px; }
+  details.help summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 6px 0; }
+  details.help .help-body { font-size: 12.5px; color: var(--muted); line-height: 1.6; background: var(--panel); border-radius: 10px; padding: 14px; }
+  details.help b { color: var(--ink); }
+
+  /* ===== game screen ===== */
+  #gameScreen { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 10px; }
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel); border-radius: 10px; padding: 10px 16px; font-size: 13px;
+  }
+  .topbar .who { display:flex; gap:18px; }
+  .who .side { text-align:center; }
+  .who .name { font-weight:700; font-size: 13px; }
+  .who .score { font-size: 20px; color: var(--accent); font-weight: 800; }
+  .who .side.active .name { color: var(--accent2); }
+  .meta { color: var(--muted); font-size: 12px; text-align:center; }
+
+  .board {
+    background: linear-gradient(160deg, #1c3326, #142219 70%);
+    border-radius: 14px; padding: 14px; display:flex; flex-direction:column; gap:10px;
+    min-height: 360px; position: relative; border: 1px solid #24402f;
+  }
+  .zone-label { font-size: 10px; color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;}
+  .hand-row { display:flex; gap:6px; flex-wrap: wrap; min-height: 100px; align-items:center; justify-content:center; }
+  .field-row { display:flex; gap:6px; flex-wrap: wrap; min-height: 108px; align-items:center; justify-content:center; padding: 8px; background: rgba(0,0,0,.15); border-radius: 10px; }
+
+  .card {
+    width: 62px; height: 94px; border-radius: 7px; position: relative;
+    display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+    padding: 5px 3px; font-size: 9px; text-align:center; color: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,.4); flex-shrink:0;
+    border: 3px solid rgba(255,255,255,.15);
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  .card .icon { font-size: 22px; line-height:1; }
+  .card .mn { font-weight:700; font-size: 9px; opacity:.85; }
+  .card .nm { font-size: 8px; opacity:.85; }
+  .card.bright { border-color: var(--accent); box-shadow: 0 0 10px rgba(246,201,69,.5); }
+  .card.animal { border-color: var(--accent2); }
+  .card.ribbon.poetry { border-color: #e6b8ff; }
+  .card.ribbon.red { border-color: #ff8f8f; }
+  .card.ribbon.blue { border-color: #8fc4ff; }
+  .card.plain { border-color: rgba(255,255,255,.2); }
+  .card.clickable { cursor: pointer; }
+  .card.clickable:hover { transform: translateY(-4px); box-shadow: 0 6px 14px rgba(0,0,0,.5); }
+  .card.selectable { outline: 3px solid var(--accent); outline-offset: 2px; cursor:pointer; animation: pulse 1.1s infinite; }
+  .card.disabled-pick { outline: 3px solid rgba(246,201,69,.4); outline-offset:2px; }
+  @keyframes pulse { 0%,100% { outline-color: var(--accent);} 50% { outline-color: rgba(246,201,69,.3);} }
+
+  .card-back {
+    width: 46px; height: 68px; border-radius: 6px; flex-shrink:0;
+    background: repeating-linear-gradient(45deg, #2c3a52, #2c3a52 4px, #384a68 4px, #384a68 8px);
+    border: 2px solid #4a5d80; box-shadow: 0 2px 5px rgba(0,0,0,.4);
+  }
+
+  .capture-strip { display:flex; gap: 14px; }
+  .capture-col { flex:1; background: var(--panel); border-radius: 10px; padding: 8px 10px; }
+  .capture-col .title { font-size: 11px; color: var(--muted); margin-bottom: 6px; display:flex; justify-content:space-between;}
+  .capture-mini-row { display:flex; gap:4px; flex-wrap:wrap; min-height: 30px; }
+  .mini-card {
+    width: 22px; height: 32px; border-radius: 4px; font-size: 13px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+
+  .deck-pile { position:absolute; top: 10px; right: 14px; text-align:center; font-size: 10px; color: var(--muted); }
+  .deck-pile .card-back { margin: 0 auto 3px; }
+
+  .log-panel { background: var(--panel); border-radius: 10px; padding: 8px 12px; font-size: 12px; color: var(--muted); max-height: 90px; overflow-y:auto; }
+  .log-panel div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+
+  .banner { text-align:center; font-size: 13px; padding: 8px; border-radius: 8px; background: rgba(246,201,69,.12); color: var(--accent); }
+
+  /* modal */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(6,8,12,.72); display:flex; align-items:center; justify-content:center; z-index: 50; padding: 16px;
+  }
+  .modal {
+    background: var(--panel2); border-radius: 14px; padding: 24px; max-width: 420px; width:100%;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5); text-align:center;
+  }
+  .modal h2 { margin-top:0; color: var(--accent); font-size: 18px; }
+  .yaku-list { text-align:left; background: #0f141c; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
+  .yaku-list div { display:flex; justify-content:space-between; padding: 3px 0; }
+  .yaku-total { font-weight:800; font-size: 15px; color: var(--accent); border-top: 1px solid #313d4e; margin-top:6px; padding-top:6px; }
+
+  @media (max-width: 640px) {
+    #app { padding: 8px; }
+    h1 { font-size: 19px; }
+    .card-panel { padding: 16px; gap: 12px; }
+    .code-display { font-size: 22px; letter-spacing: 2px; padding: 12px; }
+
+    #gameScreen { gap: 8px; }
+    .topbar { padding: 8px 10px; font-size: 12px; }
+    .topbar .who { gap: 10px; }
+    .who .score { font-size: 17px; }
+    .board { padding: 8px; min-height: unset; border-radius: 10px; }
+    .hand-row { min-height: 84px; gap: 4px; }
+    .field-row { min-height: 90px; gap: 4px; padding: 6px; }
+
+    .card { width: 46px; height: 70px; padding: 3px 2px; border-width: 2px; }
+    .card .icon { font-size: 17px; }
+    .card .mn { font-size: 7.5px; }
+    .card .nm { display: none; }
+    .card-back { width: 38px; height: 56px; }
+    .deck-pile { top: 6px; right: 8px; }
+
+    .capture-strip { gap: 8px; flex-wrap: wrap; }
+    .capture-col { padding: 6px 8px; min-width: 45%; }
+    .mini-card { width: 18px; height: 26px; font-size: 11px; }
+
+    .log-panel { max-height: 70px; font-size: 11px; }
+    .modal { padding: 18px; max-width: 92vw; }
+    .overlay { padding: 10px; }
+    .yaku-list { font-size: 12px; padding: 8px 10px; }
+  }
+
+  @media (max-width: 400px) {
+    .card { width: 40px; height: 60px; }
+    .card .icon { font-size: 15px; }
+    .card .mn { font-size: 7px; }
+    .capture-col { min-width: 100%; }
+  }
+
+  @media (hover: none) {
+    .card.clickable:hover { transform: none; box-shadow: 0 2px 5px rgba(0,0,0,.4); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= LOBBY ================= -->
+  <div id="lobbyScreen">
+    <h1>🎴 Koi-Koi <span class="jp">こいこい</span></h1>
+    <div class="subtitle">Two-player Hanafuda card game — play with a friend on another computer.</div>
+
+    <div class="card-panel">
+      <div>
+        <label>Your name</label>
+        <input type="text" id="nameInput" placeholder="Your name" maxlength="16">
+      </div>
+
+      <div class="divider"><span>HOST</span></div>
+      <div>
+        <label>Rounds to play</label>
+        <select id="roundsSelect">
+          <option value="3">3 rounds</option>
+          <option value="6" selected>6 rounds</option>
+          <option value="9">9 rounds</option>
+          <option value="12">12 rounds</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-block" id="hostBtn">Host a New Game</button>
+
+      <div class="divider"><span>JOIN</span></div>
+      <div class="row">
+        <input type="text" id="joinCodeInput" placeholder="Enter room code">
+        <button class="btn-secondary" id="joinBtn" style="flex:0 0 auto;">Join</button>
+      </div>
+
+      <div class="divider"><span>OR</span></div>
+      <button class="btn-secondary btn-block" id="hotseatBtn">Play Local Pass-and-Play (1 device)</button>
+
+      <div class="status-line" id="lobbyStatus"></div>
+    </div>
+
+    <details class="help">
+      <summary>How to play Koi-Koi (quick rules)</summary>
+      <div class="help-body">
+        Each round you're dealt 8 cards, 8 cards sit face-up on the field, and the rest form a draw deck.<br><br>
+        <b>Your turn:</b> play a card from your hand. If it shares a month with a field card, you capture both. If it matches nothing, it stays on the field. Then draw the top deck card and repeat the same matching against the field.<br><br>
+        <b>Yaku:</b> certain combinations of captured cards score points (e.g. three "bright" cards, five ribbons, boar+deer+butterfly, etc). The moment you complete or improve a yaku, you choose: <b>Koi-Koi</b> (keep playing for more points, but doubles the round's score if anyone scores again) or <b>Shobu</b> (bank the points now and end the round).<br><br>
+        Highest total score after all rounds wins.
+      </div>
+    </details>
+  </div>
+
+  <!-- ================= HOST WAIT ================= -->
+  <div id="hostWaitScreen" class="hidden">
+    <h1>🎴 Waiting for opponent…</h1>
+    <div class="card-panel">
+      <label>Share this room code with your opponent</label>
+      <div class="code-display" id="roomCodeDisplay">—</div>
+      <button class="btn-secondary btn-block" id="copyCodeBtn">Copy Code</button>
+      <div class="status-line" id="hostWaitStatus">Waiting for someone to join…</div>
+      <button class="btn-primary btn-block hidden" id="startGameBtn">Start Game</button>
+      <button class="btn-secondary btn-block" id="cancelHostBtn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ================= JOIN WAIT ================= -->
+  <div id="joinWaitScreen" class="hidden">
+    <h1>🎴 Connecting…</h1>
+    <div class="card-panel">
+      <div class="status-line" id="joinWaitStatus">Connecting to host…</div>
+      <button class="btn-secondary btn-block" id="cancelJoinBtn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ================= HOTSEAT PASS SCREEN ================= -->
+  <div id="passScreen" class="hidden">
+    <h1>🎴 Pass the device</h1>
+    <div class="card-panel">
+      <div class="status-line" id="passWho" style="font-size:16px; color: var(--ink);"></div>
+      <button class="btn-primary btn-block" id="passReadyBtn">I'm ready — show my hand</button>
+    </div>
+  </div>
+
+  <!-- ================= GAME ================= -->
+  <div id="gameScreen" class="hidden">
+    <div class="topbar">
+      <div class="who">
+        <div class="side" id="sideA">
+          <div class="name" id="nameA">—</div>
+          <div class="score" id="scoreA">0</div>
+        </div>
+        <div class="side" id="sideB">
+          <div class="name" id="nameB">—</div>
+          <div class="score" id="scoreB">0</div>
+        </div>
+      </div>
+      <div class="meta" id="roundMeta">Round 1</div>
+    </div>
+
+    <div class="banner hidden" id="turnBanner"></div>
+
+    <div class="board">
+      <div class="deck-pile">
+        <div class="card-back"></div>
+        <span id="deckCount">24</span> left
+      </div>
+      <div>
+        <div class="zone-label" id="oppHandLabel">Opponent's hand</div>
+        <div class="hand-row" id="oppHandRow"></div>
+      </div>
+      <div>
+        <div class="zone-label">Field</div>
+        <div class="field-row" id="fieldRow"></div>
+      </div>
+      <div>
+        <div class="zone-label" id="myHandLabel">Your hand</div>
+        <div class="hand-row" id="myHandRow"></div>
+      </div>
+    </div>
+
+    <div class="capture-strip">
+      <div class="capture-col">
+        <div class="title"><span id="capTitleA">You</span><span id="capYakuA"></span></div>
+        <div class="capture-mini-row" id="capRowA"></div>
+      </div>
+      <div class="capture-col">
+        <div class="title"><span id="capTitleB">Opponent</span><span id="capYakuB"></span></div>
+        <div class="capture-mini-row" id="capRowB"></div>
+      </div>
+    </div>
+
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+</div>
+
+<!-- ================= MODALS ================= -->
+<div id="koikoiModal" class="overlay hidden">
+  <div class="modal">
+    <h2 id="koikoiTitle">Yaku complete!</h2>
+    <div class="yaku-list" id="koikoiYakuList"></div>
+    <div id="koikoiActions">
+      <div class="row">
+        <button class="btn-primary" id="koikoiBtn">Koi-Koi (keep going)</button>
+        <button class="btn-danger" id="shobuBtn">Shobu (stop &amp; score)</button>
+      </div>
+    </div>
+    <div id="koikoiWaiting" class="hint hidden">Waiting for opponent's decision…</div>
+  </div>
+</div>
+
+<div id="roundEndModal" class="overlay hidden">
+  <div class="modal">
+    <h2 id="roundEndTitle">Round complete</h2>
+    <div class="yaku-list" id="roundEndBody"></div>
+    <button class="btn-primary btn-block" id="nextRoundBtn">Next Round</button>
+  </div>
+</div>
+
+<div id="gameEndModal" class="overlay hidden">
+  <div class="modal">
+    <h2 id="gameEndTitle">Game Over</h2>
+    <div class="yaku-list" id="gameEndBody"></div>
+    <button class="btn-primary btn-block" id="newGameBtn">Back to Lobby</button>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   CORE GAME LOGIC (deck, dealing, yaku) — pure functions, no DOM
+   ===================================================================== */
+const MONTH_NAMES = ['Pine','Plum','Cherry','Wisteria','Iris','Peony','Bush Clover','Pampas Grass','Chrysanthemum','Maple','Willow','Paulownia'];
+const ICONS = {
+  'Crane':'🦢','Bush Warbler':'🐦','Curtain':'🌸','Cuckoo':'🐦','Yatsuhashi Bridge':'🌉',
+  'Butterflies':'🦋','Boar':'🐗','Full Moon':'🌕','Geese':'🦢','Sake Cup':'🍶','Deer':'🦌',
+  'Rain Man':'☔','Swallow':'🐦','Lightning':'⚡','Phoenix':'🔥','Plain':'🍂',
+  'Poetry Ribbon':'🎗️','Red Ribbon':'🎗️','Blue Ribbon':'🎗️'
+};
+
+function buildDeck() {
+  const defs = [
+    [1, [ {type:'bright',name:'Crane'}, {type:'ribbon',name:'Poetry Ribbon',ribbon:'poetry'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [2, [ {type:'animal',name:'Bush Warbler'}, {type:'ribbon',name:'Poetry Ribbon',ribbon:'poetry'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [3, [ {type:'bright',name:'Curtain'}, {type:'ribbon',name:'Poetry Ribbon',ribbon:'poetry'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [4, [ {type:'animal',name:'Cuckoo'}, {type:'ribbon',name:'Red Ribbon',ribbon:'red'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [5, [ {type:'animal',name:'Yatsuhashi Bridge'}, {type:'ribbon',name:'Red Ribbon',ribbon:'red'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [6, [ {type:'animal',name:'Butterflies'}, {type:'ribbon',name:'Blue Ribbon',ribbon:'blue'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [7, [ {type:'animal',name:'Boar'}, {type:'ribbon',name:'Red Ribbon',ribbon:'red'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [8, [ {type:'bright',name:'Full Moon'}, {type:'animal',name:'Geese'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [9, [ {type:'animal',name:'Sake Cup'}, {type:'ribbon',name:'Blue Ribbon',ribbon:'blue'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [10,[ {type:'animal',name:'Deer'}, {type:'ribbon',name:'Blue Ribbon',ribbon:'blue'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+    [11,[ {type:'bright',name:'Rain Man'}, {type:'animal',name:'Swallow'}, {type:'ribbon',name:'Red Ribbon',ribbon:'red'}, {type:'plain',name:'Lightning'} ]],
+    [12,[ {type:'bright',name:'Phoenix'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'}, {type:'plain',name:'Plain'} ]],
+  ];
+  const deck = [];
+  let id = 0;
+  for (const [month, cards] of defs) {
+    for (const c of cards) {
+      deck.push({ id: id++, month, monthName: MONTH_NAMES[month-1], type: c.type, name: c.name, ribbon: c.ribbon || null });
+    }
+  }
+  return deck;
+}
+
+function shuffle(deck, rng) {
+  const arr = deck.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hasFourOfSameMonth(cards) {
+  const counts = {};
+  for (const c of cards) counts[c.month] = (counts[c.month]||0)+1;
+  return Object.values(counts).some(v => v >= 4);
+}
+
+function dealRound(seed) {
+  let attempt = 0;
+  while (true) {
+    const rng = mulberry32(seed + attempt * 97);
+    const deck = shuffle(buildDeck(), rng);
+    const handA = deck.splice(0, 8);
+    const handB = deck.splice(0, 8);
+    const field = deck.splice(0, 8);
+    if (!hasFourOfSameMonth(field) || attempt > 25) {
+      return { deck, handA, handB, field };
+    }
+    attempt++;
+  }
+}
+
+function findMatches(card, field) {
+  return field.filter(f => f.month === card.month);
+}
+
+function computeYaku(captured) {
+  const brights = captured.filter(c => c.type === 'bright');
+  const animals = captured.filter(c => c.type === 'animal');
+  const ribbons = captured.filter(c => c.type === 'ribbon');
+  const plains  = captured.filter(c => c.type === 'plain');
+  const yaku = [];
+
+  const hasRainMan = brights.some(c => c.name === 'Rain Man');
+  if (brights.length >= 5) {
+    yaku.push({ key:'goko', name:'Five Brights (Goko)', points:10 });
+  } else if (brights.length === 4) {
+    if (hasRainMan) yaku.push({ key:'ameshiko', name:'Rainy Four Brights (Ame-Shiko)', points:7 });
+    else yaku.push({ key:'shiko', name:'Four Brights (Shiko)', points:8 });
+  } else if (brights.length === 3) {
+    yaku.push({ key:'sanko', name:'Three Brights (Sanko)', points:5 });
+  }
+
+  const hasBoar = animals.some(c => c.month === 7);
+  const hasDeer = animals.some(c => c.month === 10);
+  const hasButterfly = animals.some(c => c.month === 6);
+  if (hasBoar && hasDeer && hasButterfly) {
+    yaku.push({ key:'inoshikacho', name:'Boar-Deer-Butterfly (Ino-Shika-Cho)', points:5 });
+  }
+
+  if (animals.length >= 5) {
+    yaku.push({ key:'tane', name:'Animals (Tane)', points: 1 + (animals.length - 5) });
+  }
+  if (ribbons.length >= 5) {
+    yaku.push({ key:'tanzaku', name:'Ribbons (Tanzaku)', points: 1 + (ribbons.length - 5) });
+  }
+
+  const poetry = ribbons.filter(r => r.ribbon === 'poetry');
+  const blue = ribbons.filter(r => r.ribbon === 'blue');
+  const hasAkatan = poetry.length === 3;
+  const hasAotan = blue.length === 3;
+  if (hasAkatan) yaku.push({ key:'akatan', name:'Red Poetry Ribbons (Akatan)', points:5 });
+  if (hasAotan) yaku.push({ key:'aotan', name:'Blue Ribbons (Aotan)', points:5 });
+  if (hasAkatan && hasAotan) yaku.push({ key:'ao_aka_bonus', name:'Akatan + Aotan Bonus', points:5 });
+
+  if (plains.length >= 10) {
+    yaku.push({ key:'kasu', name:'Plains (Kasu)', points: 1 + (plains.length - 10) });
+  }
+
+  return yaku;
+}
+
+function totalPoints(yakuList) {
+  return yakuList.reduce((s, y) => s + y.points, 0);
+}
+
+/* =====================================================================
+   NETWORK / APP STATE
+   ===================================================================== */
+let peer = null, conn = null;
+let isHost = false;
+let myIndex = 0;       // 0 = host seat, 1 = guest seat
+let localHotseat = false;
+let myName = 'You', oppName = 'Opponent';
+let state = null;      // authoritative game state (host owns it; guest receives copies)
+
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id).classList.remove('hidden'); }
+function hide(id) { $(id).classList.add('hidden'); }
+
+/* ---------- initial state / dealing ---------- */
+function createInitialState(numRounds, names) {
+  return {
+    round: 1, numRounds, dealer: 0,
+    scores: [0, 0], names,
+    phase: 'playing',
+    log: [],
+    deck: [], hands: [[],[]], field: [], captured: [[],[]],
+    ackTotal: [0,0], koikoiCalls: 0, lastScorer: null,
+    turn: 1, pendingCaptureChoice: null, pendingKoikoi: null, roundResult: null
+  };
+}
+
+function dealNewRound(st) {
+  const seed = Math.floor(Math.random() * 2**31);
+  const { deck, handA, handB, field } = dealRound(seed);
+  st.deck = deck;
+  st.hands = [handA, handB];
+  st.field = field;
+  st.captured = [[], []];
+  st.ackTotal = [0, 0];
+  st.koikoiCalls = 0;
+  st.lastScorer = null;
+  st.turn = 1 - st.dealer;
+  st.pendingCaptureChoice = null;
+  st.pendingKoikoi = null;
+  st.roundResult = null;
+  st.phase = 'playing';
+  addLog(st, `Round ${st.round} dealt. ${st.names[st.turn]} goes first.`);
+}
+
+function addLog(st, msg) {
+  st.log.push(msg);
+  if (st.log.length > 40) st.log.shift();
+}
+
+/* ---------- action application (host-authoritative) ---------- */
+function applyAction(action, playerIdx) {
+  if (!state) return;
+  const st = state;
+  switch (action.type) {
+    case 'playHand': {
+      if (st.phase !== 'playing' || st.turn !== playerIdx) return;
+      const hand = st.hands[playerIdx];
+      const i = hand.findIndex(c => c.id === action.cardId);
+      if (i === -1) return;
+      const card = hand.splice(i, 1)[0];
+      resolvePlay(st, card, playerIdx, 'hand');
+      break;
+    }
+    case 'chooseCapture': {
+      if (st.phase !== 'awaiting-capture-choice' || !st.pendingCaptureChoice || st.pendingCaptureChoice.player !== playerIdx) return;
+      const pend = st.pendingCaptureChoice;
+      const fi = st.field.findIndex(c => c.id === action.chosenId);
+      if (fi === -1) return;
+      const chosen = st.field.splice(fi, 1)[0];
+      st.captured[playerIdx].push(chosen, pend.card);
+      addLog(st, `${st.names[playerIdx]} captured ${chosen.monthName} - ${chosen.name} with ${pend.card.name}.`);
+      st.pendingCaptureChoice = null;
+      st.phase = 'playing';
+      if (pend.stage === 'hand') doDraw(st, playerIdx);
+      else finishTurnCaptureCheck(st, playerIdx);
+      break;
+    }
+    case 'koikoiChoice': {
+      if (st.phase !== 'awaiting-koikoi' || !st.pendingKoikoi || st.pendingKoikoi.player !== playerIdx) return;
+      const pend = st.pendingKoikoi;
+      if (action.choice === 'shobu') {
+        endRound(st, playerIdx, pend.points);
+      } else {
+        st.ackTotal[playerIdx] = pend.points;
+        st.koikoiCalls += 1;
+        st.lastScorer = { player: playerIdx, points: pend.points };
+        addLog(st, `${st.names[playerIdx]} called Koi-Koi! (score now doubles if anyone scores again)`);
+        st.pendingKoikoi = null;
+        st.phase = 'playing';
+        checkHandsEmptyOrPassTurn(st, playerIdx);
+      }
+      break;
+    }
+    case 'nextRound': {
+      if (st.phase !== 'round-end') return;
+      if (st.round >= st.numRounds) {
+        st.phase = 'game-end';
+      } else {
+        st.round += 1;
+        st.dealer = 1 - st.dealer;
+        dealNewRound(st);
+      }
+      break;
+    }
+    default: break;
+  }
+}
+
+function resolvePlay(st, card, playerIdx, stage) {
+  const matches = findMatches(card, st.field);
+  if (matches.length === 0) {
+    st.field.push(card);
+    addLog(st, `${st.names[playerIdx]} played ${card.monthName} - ${card.name} (no match).`);
+    if (stage === 'hand') doDraw(st, playerIdx);
+    else finishTurnCaptureCheck(st, playerIdx);
+  } else if (matches.length === 1) {
+    const m = matches[0];
+    st.field.splice(st.field.indexOf(m), 1);
+    st.captured[playerIdx].push(m, card);
+    addLog(st, `${st.names[playerIdx]} captured ${m.monthName} - ${m.name} with ${card.name}.`);
+    if (stage === 'hand') doDraw(st, playerIdx);
+    else finishTurnCaptureCheck(st, playerIdx);
+  } else if (matches.length >= 3) {
+    for (const m of matches) st.field.splice(st.field.indexOf(m), 1);
+    st.captured[playerIdx].push(...matches, card);
+    addLog(st, `${st.names[playerIdx]} swept ${matches.length} ${card.monthName} cards with ${card.name}!`);
+    if (stage === 'hand') doDraw(st, playerIdx);
+    else finishTurnCaptureCheck(st, playerIdx);
+  } else {
+    // exactly 2 matches: player must choose
+    st.phase = 'awaiting-capture-choice';
+    st.pendingCaptureChoice = { player: playerIdx, card, matches, stage };
+  }
+}
+
+function doDraw(st, playerIdx) {
+  if (st.deck.length === 0) {
+    finishTurnCaptureCheck(st, playerIdx);
+    return;
+  }
+  const card = st.deck.shift();
+  resolvePlay(st, card, playerIdx, 'draw');
+}
+
+function finishTurnCaptureCheck(st, playerIdx) {
+  const yakuList = computeYaku(st.captured[playerIdx]);
+  const pts = totalPoints(yakuList);
+  if (pts > st.ackTotal[playerIdx]) {
+    st.phase = 'awaiting-koikoi';
+    st.pendingKoikoi = { player: playerIdx, yakuList, points: pts };
+  } else {
+    checkHandsEmptyOrPassTurn(st, playerIdx);
+  }
+}
+
+function checkHandsEmptyOrPassTurn(st, playerIdx) {
+  if (st.hands[0].length === 0 && st.hands[1].length === 0) {
+    if (st.lastScorer) endRound(st, st.lastScorer.player, st.lastScorer.points);
+    else endRoundDraw(st);
+  } else {
+    st.turn = 1 - playerIdx;
+    st.phase = 'playing';
+  }
+}
+
+function endRound(st, winner, basePoints) {
+  const multiplier = Math.pow(2, st.koikoiCalls);
+  const final = basePoints * multiplier;
+  st.scores[winner] += final;
+  st.phase = 'round-end';
+  st.roundResult = { winner, basePoints, multiplier, final, yaku: computeYaku(st.captured[winner]) };
+  addLog(st, `${st.names[winner]} wins the round: ${basePoints} x${multiplier} = ${final} points.`);
+}
+
+function endRoundDraw(st) {
+  st.phase = 'round-end';
+  st.roundResult = { winner: null, final: 0 };
+  addLog(st, `Round ended with no yaku scored — no points awarded.`);
+}
+
+/* ---------- networking ---------- */
+function broadcastState() {
+  if (conn && conn.open) conn.send({ t: 'state', state });
+}
+
+function sendAction(action) {
+  if (localHotseat) {
+    applyAction(action, state.turn === undefined ? 0 : actingSeatForHotseat(action));
+    render();
+    return;
+  }
+  if (isHost) {
+    applyAction(action, 0);
+    broadcastState();
+    render();
+  } else {
+    if (conn && conn.open) conn.send({ t: 'action', action });
+  }
+}
+
+// In hotseat mode the "acting seat" is whichever seat currently has agency:
+// normal play/capture-choice -> state.turn ; koikoi choice -> pendingKoikoi.player
+function actingSeatForHotseat(action) {
+  if (action.type === 'koikoiChoice') return state.pendingKoikoi ? state.pendingKoikoi.player : state.turn;
+  if (action.type === 'chooseCapture') return state.pendingCaptureChoice ? state.pendingCaptureChoice.player : state.turn;
+  return state.turn;
+}
+
+function handleMessage(msg) {
+  if (msg.t === 'hello') {
+    oppName = msg.name || 'Opponent';
+    $('hostWaitStatus').textContent = `${oppName} joined!`;
+    show('startGameBtn');
+  } else if (msg.t === 'action') {
+    applyAction(msg.action, 1);
+    broadcastState();
+    render();
+  } else if (msg.t === 'state') {
+    state = msg.state;
+    if ($('joinWaitScreen') && !$('joinWaitScreen').classList.contains('hidden')) {
+      hide('joinWaitScreen');
+      show('gameScreen');
+    }
+    render();
+  }
+}
+
+function setupConnection() {
+  conn.on('open', () => {
+    if (!isHost) {
+      conn.send({ t: 'hello', name: myName });
+    } else if (state) {
+      broadcastState();
+    }
+  });
+  conn.on('data', handleMessage);
+  conn.on('close', () => {
+    alert('Connection to opponent was lost.');
+  });
+  conn.on('error', (err) => {
+    console.error(err);
+  });
+}
+
+function hostGame() {
+  myName = $('nameInput').value.trim() || 'Host';
+  isHost = true; myIndex = 0;
+  hide('lobbyScreen'); show('hostWaitScreen');
+  $('hostWaitStatus').textContent = 'Setting up room…';
+  peer = new Peer();
+  peer.on('open', (id) => {
+    $('roomCodeDisplay').textContent = id;
+    $('hostWaitStatus').textContent = 'Waiting for someone to join…';
+  });
+  peer.on('connection', (c) => {
+    conn = c;
+    setupConnection();
+  });
+  peer.on('error', (err) => {
+    $('hostWaitStatus').textContent = 'Error: ' + err.type;
+  });
+}
+
+function joinGame() {
+  const code = $('joinCodeInput').value.trim();
+  if (!code) return;
+  myName = $('nameInput').value.trim() || 'Guest';
+  isHost = false; myIndex = 1;
+  hide('lobbyScreen'); show('joinWaitScreen');
+  $('joinWaitStatus').textContent = 'Connecting to host…';
+  peer = new Peer();
+  peer.on('open', () => {
+    conn = peer.connect(code, { reliable: true });
+    setupConnection();
+    $('joinWaitStatus').textContent = 'Connected! Waiting for host to start the game…';
+  });
+  peer.on('error', (err) => {
+    $('joinWaitStatus').textContent = 'Error: ' + err.type;
+  });
+}
+
+function startGame() {
+  const numRounds = parseInt($('roundsSelect').value, 10);
+  state = createInitialState(numRounds, [myName, oppName]);
+  dealNewRound(state);
+  hide('hostWaitScreen');
+  show('gameScreen');
+  broadcastState();
+  render();
+}
+
+/* ---------- hotseat mode ---------- */
+let hotseatRevealed = false;
+function startHotseat() {
+  myName = $('nameInput').value.trim() || 'Player 1';
+  localHotseat = true; isHost = true; myIndex = 0;
+  oppName = 'Player 2';
+  const numRounds = parseInt($('roundsSelect').value, 10);
+  state = createInitialState(numRounds, [myName, oppName]);
+  dealNewRound(state);
+  hide('lobbyScreen');
+  showPassScreen();
+}
+
+function showPassScreen() {
+  hide('gameScreen');
+  hotseatRevealed = false;
+  const seat = currentViewSeat();
+  $('passWho').textContent = `${state.names[seat]}'s turn`;
+  show('passScreen');
+}
+
+function currentViewSeat() {
+  if (state.phase === 'awaiting-koikoi' && state.pendingKoikoi) return state.pendingKoikoi.player;
+  if (state.phase === 'awaiting-capture-choice' && state.pendingCaptureChoice) return state.pendingCaptureChoice.player;
+  return state.turn;
+}
+
+/* =====================================================================
+   RENDERING
+   ===================================================================== */
+function cardHTML(card, extraClass) {
+  const ribbonClass = card.type === 'ribbon' ? ' ' + card.ribbon : '';
+  const hue = (card.month - 1) * 30;
+  const icon = ICONS[card.name] || '❔';
+  return `<div class="card ${card.type}${ribbonClass} ${extraClass||''}" data-id="${card.id}" style="--hue:${hue}; background:hsl(${hue} 55% 30%);">
+    <div class="mn">${card.monthName}</div>
+    <div class="icon">${icon}</div>
+    <div class="nm">${card.name}</div>
+  </div>`;
+}
+
+function miniCardHTML(card) {
+  const hue = (card.month - 1) * 30;
+  const icon = ICONS[card.name] || '❔';
+  return `<div class="mini-card" title="${card.monthName} - ${card.name}" style="background:hsl(${hue} 55% 30%);">${icon}</div>`;
+}
+
+function render() {
+  if (!state) return;
+
+  const viewSeat = localHotseat ? currentViewSeat() : myIndex;
+  const oppSeat = 1 - viewSeat;
+
+  $('nameA').textContent = state.names[viewSeat] + ' (you)';
+  $('nameB').textContent = state.names[oppSeat];
+  $('scoreA').textContent = state.scores[viewSeat];
+  $('scoreB').textContent = state.scores[oppSeat];
+  $('sideA').classList.toggle('active', state.turn === viewSeat);
+  $('sideB').classList.toggle('active', state.turn === oppSeat);
+  $('roundMeta').textContent = `Round ${state.round} / ${state.numRounds}`;
+  $('deckCount').textContent = state.deck.length;
+
+  // opponent hand (face down)
+  $('oppHandLabel').textContent = `${state.names[oppSeat]}'s hand (${state.hands[oppSeat].length})`;
+  $('oppHandRow').innerHTML = state.hands[oppSeat].map(() => `<div class="card-back"></div>`).join('');
+
+  // field
+  let clickableFieldIds = [];
+  let disabledPickIds = [];
+  if (state.phase === 'awaiting-capture-choice' && state.pendingCaptureChoice) {
+    const pend = state.pendingCaptureChoice;
+    if (pend.player === viewSeat) clickableFieldIds = pend.matches.map(m => m.id);
+    else disabledPickIds = pend.matches.map(m => m.id);
+  }
+  $('fieldRow').innerHTML = state.field.map(c => {
+    let cls = '';
+    if (clickableFieldIds.includes(c.id)) cls = 'clickable selectable';
+    else if (disabledPickIds.includes(c.id)) cls = 'disabled-pick';
+    return cardHTML(c, cls);
+  }).join('');
+  if (clickableFieldIds.length) {
+    $('fieldRow').querySelectorAll('.card.selectable').forEach(el => {
+      el.onclick = () => sendAction({ type: 'chooseCapture', chosenId: parseInt(el.dataset.id, 10) });
+    });
+  }
+
+  // my hand
+  const canPlay = state.phase === 'playing' && state.turn === viewSeat;
+  $('myHandLabel').textContent = `${state.names[viewSeat]}'s hand`;
+  $('myHandRow').innerHTML = state.hands[viewSeat].map(c => cardHTML(c, canPlay ? 'clickable' : '')).join('');
+  if (canPlay) {
+    $('myHandRow').querySelectorAll('.card').forEach(el => {
+      el.onclick = () => sendAction({ type: 'playHand', cardId: parseInt(el.dataset.id, 10) });
+    });
+  }
+
+  // capture piles
+  $('capTitleA').textContent = `${state.names[viewSeat]}'s captures`;
+  $('capTitleB').textContent = `${state.names[oppSeat]}'s captures`;
+  $('capRowA').innerHTML = state.captured[viewSeat].map(miniCardHTML).join('');
+  $('capRowB').innerHTML = state.captured[oppSeat].map(miniCardHTML).join('');
+  const myYakuPts = totalPoints(computeYaku(state.captured[viewSeat]));
+  const oppYakuPts = totalPoints(computeYaku(state.captured[oppSeat]));
+  $('capYakuA').textContent = myYakuPts > 0 ? `${myYakuPts} pts` : '';
+  $('capYakuB').textContent = oppYakuPts > 0 ? `${oppYakuPts} pts` : '';
+
+  // turn banner
+  const banner = $('turnBanner');
+  if (state.phase === 'playing') {
+    banner.classList.remove('hidden');
+    banner.textContent = state.turn === viewSeat ? 'Your turn — play a card from your hand.' : `Waiting for ${state.names[oppSeat]}…`;
+  } else if (state.phase === 'awaiting-capture-choice') {
+    banner.classList.remove('hidden');
+    const pend = state.pendingCaptureChoice;
+    banner.textContent = pend.player === viewSeat ? 'Choose which field card to capture.' : `${state.names[oppSeat]} is choosing a card to capture…`;
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  // log
+  $('logPanel').innerHTML = state.log.slice(-8).reverse().map(l => `<div>${l}</div>`).join('');
+
+  // modals
+  renderKoikoiModal(viewSeat);
+  renderRoundEndModal(viewSeat);
+  renderGameEndModal(viewSeat);
+}
+
+function renderKoikoiModal(viewSeat) {
+  if (state.phase !== 'awaiting-koikoi' || !state.pendingKoikoi) { hide('koikoiModal'); return; }
+  const pend = state.pendingKoikoi;
+  show('koikoiModal');
+  $('koikoiTitle').textContent = pend.player === viewSeat ? 'You completed a yaku!' : `${state.names[pend.player]} completed a yaku!`;
+  $('koikoiYakuList').innerHTML = pend.yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
+    + `<div class="yaku-total"><span>Total</span><span>${pend.points}</span></div>`;
+  if (pend.player === viewSeat) {
+    show('koikoiActions'); hide('koikoiWaiting');
+    $('koikoiBtn').onclick = () => sendAction({ type: 'koikoiChoice', choice: 'koikoi' });
+    $('shobuBtn').onclick = () => sendAction({ type: 'koikoiChoice', choice: 'shobu' });
+  } else {
+    hide('koikoiActions'); show('koikoiWaiting');
+  }
+}
+
+function renderRoundEndModal(viewSeat) {
+  if (state.phase !== 'round-end') { hide('roundEndModal'); return; }
+  show('roundEndModal');
+  const r = state.roundResult;
+  if (!r || r.winner === null) {
+    $('roundEndTitle').textContent = 'Round ended — no score';
+    $('roundEndBody').innerHTML = `<div>Nobody completed a yaku this round.</div>`;
+  } else {
+    $('roundEndTitle').textContent = `${state.names[r.winner]} wins the round!`;
+    $('roundEndBody').innerHTML = r.yaku.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
+      + `<div><span>Koi-Koi multiplier</span><span>x${r.multiplier}</span></div>`
+      + `<div class="yaku-total"><span>Round score</span><span>${r.final}</span></div>`
+      + `<div style="margin-top:10px; text-align:center; color: var(--muted);">Overall: ${state.names[0]} ${state.scores[0]} — ${state.names[1]} ${state.scores[1]}</div>`;
+  }
+  $('nextRoundBtn').textContent = state.round >= state.numRounds ? 'See Final Result' : 'Next Round';
+  $('nextRoundBtn').onclick = () => {
+    if (localHotseat) {
+      sendAction({ type: 'nextRound' });
+      if (state.phase !== 'game-end') showPassScreen(); else render();
+    } else {
+      sendAction({ type: 'nextRound' });
+    }
+  };
+}
+
+function renderGameEndModal(viewSeat) {
+  if (state.phase !== 'game-end') { hide('gameEndModal'); return; }
+  show('gameEndModal');
+  hide('roundEndModal');
+  hide('passScreen');
+  show('gameScreen');
+  const a = state.scores[0], b = state.scores[1];
+  let msg;
+  if (a === b) msg = `It's a tie, ${a} — ${b}!`;
+  else msg = `${state.names[a > b ? 0 : 1]} wins, ${Math.max(a,b)} — ${Math.min(a,b)}!`;
+  $('gameEndTitle').textContent = 'Game Over';
+  $('gameEndBody').innerHTML = `<div style="text-align:center; font-size:15px;">${msg}</div>`;
+  $('newGameBtn').onclick = () => location.reload();
+}
+
+/* =====================================================================
+   WIRING
+   ===================================================================== */
+$('hostBtn').onclick = hostGame;
+$('joinBtn').onclick = joinGame;
+$('hotseatBtn').onclick = startHotseat;
+$('copyCodeBtn').onclick = () => {
+  const text = $('roomCodeDisplay').textContent;
+  navigator.clipboard?.writeText(text).catch(()=>{});
+  $('copyCodeBtn').textContent = 'Copied!';
+  setTimeout(() => $('copyCodeBtn').textContent = 'Copy Code', 1200);
+};
+$('startGameBtn').onclick = startGame;
+$('cancelHostBtn').onclick = () => location.reload();
+$('cancelJoinBtn').onclick = () => location.reload();
+$('passReadyBtn').onclick = () => {
+  hide('passScreen');
+  show('gameScreen');
+  render();
+};
+
+// intercept render() calls to route through pass-screen in hotseat mode when turn changes
+const _render = render;
+let _lastSeatShown = null;
+render = function() {
+  if (localHotseat && state) {
+    const seat = currentViewSeat();
+    if (_lastSeatShown !== null && seat !== _lastSeatShown && state.phase !== 'game-end' && $('gameScreen') && !$('gameScreen').classList.contains('hidden')) {
+      _lastSeatShown = seat;
+      showPassScreen();
+      return;
+    }
+    _lastSeatShown = seat;
+  }
+  _render();
+};
+</script>
+</body>
+</html>

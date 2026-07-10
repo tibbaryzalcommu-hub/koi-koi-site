@@ -16,11 +16,36 @@
     --accent2: #59c15a;
     --danger: #e0575f;
     --radius: 12px;
+    --bg-grad-1: #1b2431;
+    --bg-grad-2: #0e1117;
+    --border: #384354;
+    --deep-bg: #0f141c;
+    --btn-secondary-bg: #384354;
+    --hairline: rgba(255,255,255,.05);
+    /* fixed (not themed) — for text sitting on the permanently-dark felt board */
+    --board-ink: #eef1f6;
+    --board-muted: #9aa5b5;
+  }
+  [data-theme="light"] {
+    --bg: #eef1f6;
+    --panel: #ffffff;
+    --panel2: #e8ecf3;
+    --ink: #1b2431;
+    --muted: #5c6577;
+    --accent: #b8860b;
+    --accent2: #2f8f4e;
+    --danger: #c9333c;
+    --bg-grad-1: #f4f6fa;
+    --bg-grad-2: #dde3ec;
+    --border: #c7ceda;
+    --deep-bg: #e5e9f0;
+    --btn-secondary-bg: #d7dde7;
+    --hairline: rgba(0,0,0,.08);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0; padding: 0; height: 100%;
-    background: radial-gradient(circle at 50% 0%, #1b2431, #0e1117 70%);
+    background: radial-gradient(circle at 50% 0%, var(--bg-grad-1), var(--bg-grad-2) 70%);
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
@@ -43,8 +68,8 @@
   .card-panel h2 { margin: 0 0 4px; font-size: 18px; color: var(--accent); }
   label { font-size: 13px; color: var(--muted); display:block; margin-bottom:4px; }
   input[type=text], select {
-    width: 100%; padding: 13px; border-radius: 8px; border: 1px solid #384354;
-    background: #0f141c; color: var(--ink); font-size: 16px;
+    width: 100%; padding: 13px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--deep-bg); color: var(--ink); font-size: 16px;
   }
   button {
     padding: 14px 20px; border-radius: 8px; border: none; cursor: pointer;
@@ -54,17 +79,17 @@
   button:active { transform: scale(0.97); }
   button:disabled { opacity: .45; cursor: not-allowed; }
   .btn-primary { background: var(--accent); color: #23180a; }
-  .btn-secondary { background: #384354; color: var(--ink); }
+  .btn-secondary { background: var(--btn-secondary-bg); color: var(--ink); }
   .btn-danger { background: var(--danger); color: white; }
   .btn-block { width: 100%; }
   .row { display: flex; gap: 10px; }
   .row > * { flex: 1; }
-  .divider { border-top: 1px solid #313d4e; margin: 6px 0; text-align:center; position:relative; }
+  .divider { border-top: 1px solid var(--border); margin: 6px 0; text-align:center; position:relative; }
   .divider span { position:absolute; top:-9px; left:50%; transform:translateX(-50%); background:var(--panel); padding:0 10px; color:var(--muted); font-size:11px; }
 
   .code-display {
     font-size: 30px; letter-spacing: 3px; font-weight: 700; text-align: center;
-    background: #0f141c; border: 1px dashed var(--accent); border-radius: 8px; padding: 18px;
+    background: var(--deep-bg); border: 1px dashed var(--accent); border-radius: 8px; padding: 18px;
     color: var(--accent); word-break: break-all;
   }
   .hint { font-size: 13px; color: var(--muted); text-align:center; }
@@ -132,10 +157,10 @@
   .mini-card img { width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
   .cap-group { margin-bottom: 7px; }
   .cap-group:last-child { margin-bottom: 0; }
-  .cap-group-label { font-size: 10.5px; color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .cap-group-label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 
   .action-bar { background: rgba(246,201,69,.12); border-radius: 8px; padding: 14px; text-align:center; }
-  .action-bar .hint { margin-bottom: 10px; color: var(--ink); font-size: 14px; }
+  .action-bar .hint { margin-bottom: 10px; color: var(--board-ink); font-size: 14px; }
   .action-bar .row { justify-content: center; }
   .action-bar .row > * { flex: 0 1 210px; }
 
@@ -147,7 +172,7 @@
   .guide-toggle-bar button { padding: 8px 18px; min-height: 38px; font-size: 13px; }
   .guide-section { margin-top: 16px; }
   .guide-section-title { font-size: 15px; color: var(--accent); font-weight:700; margin-bottom:10px; }
-  .guide-yaku-row { background:#0f141c; border-radius:8px; padding:10px 14px; margin-bottom:8px; }
+  .guide-yaku-row { background:var(--deep-bg); border-radius:8px; padding:10px 14px; margin-bottom:8px; }
   .guide-yaku-head { display:flex; justify-content:space-between; font-size:14px; font-weight:700; }
   .guide-yaku-desc { font-size:12.5px; color: var(--muted); margin-top:3px; }
   .guide-yaku-cards { display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; align-items:center; }
@@ -157,11 +182,11 @@
   .guide-month-label { width: 110px; flex-shrink:0; font-size:13px; color: var(--muted); }
   .guide-month-cards { display:flex; gap:5px; flex-wrap:wrap; }
 
-  .deck-pile { position:absolute; top: 10px; right: 14px; text-align:center; font-size: 11px; color: var(--muted); }
+  .deck-pile { position:absolute; top: 10px; right: 14px; text-align:center; font-size: 11px; color: var(--board-muted); }
   .deck-pile .card-back { margin: 0 auto 3px; }
 
   .log-panel { background: var(--panel); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--muted); max-height: 110px; overflow-y:auto; }
-  .log-panel div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .log-panel div { padding: 2px 0; border-bottom: 1px solid var(--hairline); }
 
   .banner { text-align:center; font-size: 14px; padding: 10px; border-radius: 8px; background: rgba(246,201,69,.12); color: var(--accent); }
 
@@ -193,9 +218,20 @@
     box-shadow: 0 12px 40px rgba(0,0,0,.5); text-align:center;
   }
   .modal h2 { margin-top:0; color: var(--accent); font-size: 20px; }
-  .yaku-list { text-align:left; background: #0f141c; border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+  .theme-toggle-btn {
+    position: fixed; top: 12px; right: 12px; z-index: 300;
+    width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--panel); color: var(--ink); font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  }
+  .theme-toggle-btn:active { opacity: .8; }
+  @media (max-width: 640px) {
+    .theme-toggle-btn { top: 8px; right: 8px; width: 34px; height: 34px; font-size: 15px; }
+  }
+  .yaku-list { text-align:left; background: var(--deep-bg); border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
   .yaku-list div { display:flex; justify-content:space-between; padding: 3px 0; }
-  .yaku-total { font-weight:800; font-size: 16px; color: var(--accent); border-top: 1px solid #313d4e; margin-top:6px; padding-top:6px; }
+  .yaku-total { font-weight:800; font-size: 16px; color: var(--accent); border-top: 1px solid var(--border); margin-top:6px; padding-top:6px; }
 
   @media (max-width: 640px) {
     #app { padding: 8px; }
@@ -239,6 +275,7 @@
 </style>
 </head>
 <body>
+<button class="theme-toggle-btn" id="themeToggleBtn" title="Switch light/dark mode">🌙</button>
 <div id="app">
 
   <div class="conn-banner hidden" id="connBanner"></div>
@@ -293,6 +330,10 @@
       <button class="btn-secondary btn-block" id="hotseatBtn">Play Local Pass-and-Play (1 device)</button>
 
       <div class="status-line" id="lobbyStatus"></div>
+    </div>
+
+    <div class="guide-toggle-bar">
+      <button class="btn-secondary" id="lobbyGuideToggleBtn">📖 Yaku &amp; Deck Guide</button>
     </div>
 
     <details class="help">
@@ -481,6 +522,33 @@
 </div>
 
 <script>
+/* =====================================================================
+   THEME (light/dark toggle) — applied immediately, default dark
+   ===================================================================== */
+const THEME_KEY = 'koikoi_theme_v1';
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = theme === 'light' ? '☀️' : '🌙';
+}
+function setTheme(theme) {
+  applyTheme(theme);
+  try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  setTheme(current === 'light' ? 'dark' : 'light');
+}
+(function initTheme() {
+  let saved = 'dark';
+  try { saved = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) {}
+  applyTheme(saved);
+})();
+
 /* =====================================================================
    CORE GAME LOGIC (deck, dealing, yaku) — pure functions, no DOM
    ===================================================================== */
@@ -1224,13 +1292,10 @@ function renderGuideModal() {
 
   $('guideYakuList').innerHTML = YAKU_REFERENCE.map(([name, pts, desc, filter]) => {
     const matches = _guideDeckCache.filter(filter);
-    const shown = matches.slice(0, 8);
-    const extra = matches.length - shown.length;
-    const moreHTML = extra > 0 ? `<span class="guide-yaku-more">+${extra} more</span>` : '';
     return `<div class="guide-yaku-row">
       <div class="guide-yaku-head"><span>${name}</span><span>${pts}</span></div>
       <div class="guide-yaku-desc">${desc}</div>
-      <div class="guide-yaku-cards">${shown.map(miniCardHTML).join('')}${moreHTML}</div>
+      <div class="guide-yaku-cards">${matches.map(miniCardHTML).join('')}</div>
     </div>`;
   }).join('');
 
@@ -1529,6 +1594,7 @@ function renderGameEndModal(viewSeat) {
 /* =====================================================================
    WIRING
    ===================================================================== */
+$('themeToggleBtn').onclick = toggleTheme;
 $('hostBtn').onclick = hostGame;
 $('joinBtn').onclick = joinGame;
 $('hotseatBtn').onclick = startHotseat;
@@ -1555,6 +1621,10 @@ $('dealerDrawContinueBtn').onclick = () => {
   }
 };
 $('guideToggleBtn').onclick = () => {
+  guideOpen = !guideOpen;
+  if (guideOpen) { renderGuideModal(); show('guideModal'); } else { hide('guideModal'); }
+};
+$('lobbyGuideToggleBtn').onclick = () => {
   guideOpen = !guideOpen;
   if (guideOpen) { renderGuideModal(); show('guideModal'); } else { hide('guideModal'); }
 };

@@ -239,6 +239,16 @@
   .dealer-draw-month { font-size:13px; color: var(--ink); }
   .dealer-draw-badge { background: var(--accent); color:#23180a; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; }
 
+  .koikoi-announce-modal {
+    max-width: 380px; border: 2px solid var(--accent);
+    animation: koikoiPop .25s ease;
+  }
+  .koikoi-announce-modal h2 { font-size: 22px; }
+  @keyframes koikoiPop {
+    0% { transform: scale(.85); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
   /* modal */
   .overlay {
     position: fixed; inset: 0; background: rgba(6,8,12,.72); display:flex; align-items:center; justify-content:center; z-index: 50; padding: 16px;
@@ -556,6 +566,14 @@
 </div>
 
 <!-- ================= MODALS ================= -->
+<div id="koikoiAnnounceModal" class="overlay hidden">
+  <div class="modal koikoi-announce-modal">
+    <h2 id="koikoiAnnounceTitle">🔥 Koi-Koi Declared!</h2>
+    <div class="hint" id="koikoiAnnounceBody" style="margin-bottom:18px;"></div>
+    <button class="btn-primary btn-block" id="koikoiAnnounceOkBtn">Got it</button>
+  </div>
+</div>
+
 <div id="koikoiModal" class="overlay hidden">
   <div class="modal">
     <h2 id="koikoiTitle">Yaku complete!</h2>
@@ -835,6 +853,12 @@ let myName = 'You', oppName = 'Opponent';
 let state = null;      // authoritative game state (host owns it; guest receives copies)
 let selectedHandCard = null; // local-only UI state: hand card the current player has tapped but not yet confirmed
 let guideOpen = false;        // local-only UI state: Yaku/Deck guide popup, default off
+
+// Tracks the most recent Koi-Koi call this client has already announced, so the
+// "Koi-Koi Declared!" popup fires exactly once per new call (derived from synced
+// state, not stored in state itself — see maybeAnnounceKoikoi()). Starts as
+// `undefined` so a resumed/reloaded session doesn't replay old announcements.
+let lastAnnouncedKoikoiKey;
 
 // Yaku Scoring Simulator: entirely local, lobby-only UI — not part of any game
 // session or saved state. Lets a player tap arbitrary cards to see what they'd
@@ -1427,6 +1451,14 @@ function performResume(saved) {
 
 function showPassScreen() {
   hide('gameScreen');
+  // koikoiModal / koikoiAnnounceModal are fixed-position overlays, not children of
+  // gameScreen, so hiding gameScreen alone does NOT hide them. Without this, a modal
+  // left open from the previous player's turn (e.g. their Koi-Koi/Shobu decision, or
+  // the "declared Koi-Koi" announcement) would stay visible on top of the pass
+  // screen, leaking their info to the incoming player before they've confirmed
+  // they're ready. Explicitly hide any per-seat "reveal" modals here.
+  hide('koikoiModal');
+  hide('koikoiAnnounceModal');
   hotseatRevealed = false;
   selectedHandCard = null;
   const seat = currentViewSeat();
@@ -1659,6 +1691,8 @@ function render() {
   const canPlay = state.phase === 'playing' && state.turn === viewSeat;
   if (!canPlay) selectedHandCard = null;
 
+  maybeAnnounceKoikoi(viewSeat);
+
   $('nameA').textContent = state.names[viewSeat] + ' (you)';
   $('nameB').textContent = state.names[oppSeat];
   $('scoreA').textContent = state.scores[viewSeat];
@@ -1835,7 +1869,25 @@ function render() {
   renderGameEndModal(viewSeat);
 }
 
-function renderKoikoiModal(viewSeat) {
+function maybeAnnounceKoikoi(viewSeat) {
+    if (!state) return;
+    const key = `${state.round}:${state.koikoiCalls}`;
+    if (lastAnnouncedKoikoiKey === undefined) { lastAnnouncedKoikoiKey = key; return; }
+    if (key === lastAnnouncedKoikoiKey) return;
+    lastAnnouncedKoikoiKey = key;
+    if (state.koikoiCalls > 0 && state.lastScorer && state.lastScorer.player !== viewSeat) {
+      showKoikoiAnnounce(state.lastScorer.player);
+    }
+  }
+
+  function showKoikoiAnnounce(player) {
+    const opp = 1 - player;
+    $('koikoiAnnounceTitle').textContent = `🔥 ${state.names[player]} declared Koi-Koi!`;
+    $('koikoiAnnounceBody').textContent = `${state.names[player]} chose to keep playing instead of stopping. If you (${state.names[opp]}) score the next yaku, your points double!`;
+    show('koikoiAnnounceModal');
+  }
+
+  function renderKoikoiModal(viewSeat) {
   if (state.phase !== 'awaiting-koikoi' || !state.pendingKoikoi) { hide('koikoiModal'); return; }
   const pend = state.pendingKoikoi;
   show('koikoiModal');
@@ -1975,6 +2027,7 @@ $('lobbyGuideToggleBtn').onclick = () => {
 };
 $('guideCloseBtn').onclick = () => { guideOpen = false; hide('guideModal'); };
 $('captureZoomCloseBtn').onclick = () => hide('captureZoomModal');
+$('koikoiAnnounceOkBtn').onclick = () => hide('koikoiAnnounceModal');
 
 $('lobbySimBtn').onclick = () => openSimulator();
 $('simBackBtn').onclick = () => closeSimulator();

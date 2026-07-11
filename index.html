@@ -190,10 +190,24 @@
   .sim-month { display:flex; align-items:center; gap:10px; }
   .sim-month-label { width: 90px; flex-shrink:0; font-size:13px; color: var(--muted); }
   .sim-month-cards { display:flex; gap:8px; flex-wrap:wrap; }
-  .sim-koikoi-row { display:flex; align-items:center; justify-content:center; gap:14px; }
-  .sim-koikoi-row span:first-child { color: var(--muted); font-size: 14px; }
-  .sim-koikoi-row button { min-height:38px; width:44px; padding:6px; font-size:18px; flex:0 0 auto; }
-  .sim-koikoi-count { font-size:20px; font-weight:800; color:var(--accent); min-width:22px; text-align:center; }
+  .sim-koikoi-row {
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    background: var(--deep-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px;
+  }
+  .sim-koikoi-text { display:flex; flex-direction:column; gap:2px; text-align:left; }
+  .sim-koikoi-text .sim-koikoi-title { font-size: 14px; font-weight:600; color: var(--ink); }
+  .sim-koikoi-text .sim-koikoi-hint { font-size: 12px; color: var(--muted); }
+  .sim-toggle { position:relative; flex-shrink:0; width:52px; height:30px; }
+  .sim-toggle input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
+  .sim-toggle .sim-toggle-track {
+    position:absolute; inset:0; background: var(--btn-secondary-bg); border-radius:30px; transition: background .15s ease;
+  }
+  .sim-toggle .sim-toggle-track::after {
+    content:''; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%;
+    background: var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.4); transition: transform .15s ease;
+  }
+  .sim-toggle input:checked + .sim-toggle-track { background: var(--accent); }
+  .sim-toggle input:checked + .sim-toggle-track::after { transform: translateX(22px); }
   @media (max-width: 640px) {
     .sim-month-label { width: 66px; font-size: 11px; }
   }
@@ -451,10 +465,14 @@
       <div class="yaku-list" id="simCapturedList"></div>
 
       <div class="sim-koikoi-row">
-        <span>Koi-Koi calls this round</span>
-        <button class="btn-secondary" id="simKoikoiMinus">−</button>
-        <span class="sim-koikoi-count" id="simKoikoiCount">0</span>
-        <button class="btn-secondary" id="simKoikoiPlus">+</button>
+        <div class="sim-koikoi-text">
+          <span class="sim-koikoi-title">Koi-Koi was called this round</span>
+          <span class="sim-koikoi-hint">By either player — doubles whoever ends up winning the round, caller included.</span>
+        </div>
+        <label class="sim-toggle">
+          <input type="checkbox" id="simKoikoiToggle">
+          <span class="sim-toggle-track"></span>
+        </label>
       </div>
 
       <div class="yaku-list" id="simResultBody"></div>
@@ -1569,8 +1587,8 @@ function renderSimulator() {
     ? categorizedCaptureHTML(simSelected)
     : `<div class="hint">No cards selected yet — tap cards below to add them.</div>`;
 
-  // Koi-Koi counter.
-  $('simKoikoiCount').textContent = simKoikoiCalls;
+  // Koi-Koi toggle.
+  $('simKoikoiToggle').checked = simKoikoiCalls > 0;
 
   // Live score, using the exact same computeYaku() the real game uses.
   const yakuList = computeYaku(simSelected);
@@ -1588,7 +1606,7 @@ function renderSimulator() {
         : '';
       return `<div><span>${y.name}</span><span>${y.points}</span></div>${cardsRow}`;
     }).join('')
-      + (simKoikoiCalls > 0 ? `<div><span>Koi-Koi called this round (any number of times)</span><span>x2</span></div>` : '')
+      + (simKoikoiCalls > 0 ? `<div><span>Koi-Koi was called this round</span><span>x2</span></div>` : '')
       + (basePoints >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '')
       + `<div class="yaku-total"><span>Total score</span><span>${final}</span></div>`;
   }
@@ -1948,8 +1966,7 @@ $('captureZoomCloseBtn').onclick = () => hide('captureZoomModal');
 $('lobbySimBtn').onclick = () => openSimulator();
 $('simBackBtn').onclick = () => closeSimulator();
 $('simClearBtn').onclick = () => { simSelected = []; renderSimulator(); };
-$('simKoikoiMinus').onclick = () => { simKoikoiCalls = Math.max(0, simKoikoiCalls - 1); renderSimulator(); };
-$('simKoikoiPlus').onclick = () => { simKoikoiCalls = Math.min(9, simKoikoiCalls + 1); renderSimulator(); };
+$('simKoikoiToggle').onchange = (e) => { simKoikoiCalls = e.target.checked ? 1 : 0; renderSimulator(); };
 
 // intercept render() calls to route through pass-screen in hotseat mode when turn changes,
 // and to persist state to localStorage on every render so a refresh mid-game can resume.

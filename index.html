@@ -55,7 +55,7 @@
     overscroll-behavior-y: contain;
   }
   #app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; width: 100%; }
-  #lobbyScreen, #hostWaitScreen, #joinWaitScreen, #passScreen, #gameScreen, #dealerDrawScreen {
+  #lobbyScreen, #hostWaitScreen, #joinWaitScreen, #passScreen, #gameScreen, #dealerDrawScreen, #simScreen {
     display: flex; flex-direction: column; align-items: center; width: 100%;
   }
   h1 { font-size: 30px; margin: 4px 0 2px; letter-spacing: 0.5px; }
@@ -171,7 +171,7 @@
   .drawn-card-zone .zone-label { margin-bottom: 0; }
   .drawn-card-row { display:flex; justify-content:center; }
 
-  .guide-toggle-bar { display:flex; justify-content:center; }
+  .guide-toggle-bar { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
   .guide-toggle-bar button { padding: 8px 18px; min-height: 38px; font-size: 13px; }
   .guide-section { margin-top: 16px; }
   .guide-section-title { font-size: 15px; color: var(--accent); font-weight:700; margin-bottom:10px; }
@@ -184,6 +184,19 @@
   .guide-month { display:flex; align-items:center; gap:10px; }
   .guide-month-label { width: 110px; flex-shrink:0; font-size:13px; color: var(--muted); }
   .guide-month-cards { display:flex; gap:5px; flex-wrap:wrap; }
+
+  /* ===== yaku scoring simulator ===== */
+  .sim-deck-grid { display:flex; flex-direction:column; gap:12px; }
+  .sim-month { display:flex; align-items:center; gap:10px; }
+  .sim-month-label { width: 90px; flex-shrink:0; font-size:13px; color: var(--muted); }
+  .sim-month-cards { display:flex; gap:8px; flex-wrap:wrap; }
+  .sim-koikoi-row { display:flex; align-items:center; justify-content:center; gap:14px; }
+  .sim-koikoi-row span:first-child { color: var(--muted); font-size: 14px; }
+  .sim-koikoi-row button { min-height:38px; width:44px; padding:6px; font-size:18px; flex:0 0 auto; }
+  .sim-koikoi-count { font-size:20px; font-weight:800; color:var(--accent); min-width:22px; text-align:center; }
+  @media (max-width: 640px) {
+    .sim-month-label { width: 66px; font-size: 11px; }
+  }
 
   .deck-pile { position:absolute; top: 10px; right: 14px; text-align:center; font-size: 11px; color: var(--board-muted); }
   .deck-pile .card-back { margin: 0 auto 3px; }
@@ -337,6 +350,7 @@
 
     <div class="guide-toggle-bar">
       <button class="btn-secondary" id="lobbyGuideToggleBtn">📖 Yaku &amp; Deck Guide</button>
+      <button class="btn-secondary" id="lobbySimBtn">🧮 Yaku Scoring Simulator</button>
     </div>
 
     <details class="help">
@@ -393,6 +407,36 @@
       <div class="dealer-draw-cards" id="dealerDrawCards"></div>
       <div class="status-line" id="dealerDrawResultText"></div>
       <button class="btn-primary btn-block" id="dealerDrawContinueBtn">Continue</button>
+    </div>
+  </div>
+
+  <!-- ================= YAKU SCORING SIMULATOR ================= -->
+  <div id="simScreen" class="hidden">
+    <h1>🧮 Yaku Scoring Simulator</h1>
+    <div class="subtitle">Tap any cards to mark them "captured" and see what they'd score — handy for double-checking your count, even in a physical game.</div>
+
+    <div class="card-panel" style="max-width:900px; align-items:stretch;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="guide-section-title" style="margin:0;">Captured cards (<span id="simCapturedCount">0</span>)</div>
+        <button class="btn-secondary" id="simClearBtn" style="min-height:34px; padding:6px 14px; font-size:13px;">Clear all</button>
+      </div>
+      <div class="yaku-list" id="simCapturedList"></div>
+
+      <div class="sim-koikoi-row">
+        <span>Koi-Koi calls this round</span>
+        <button class="btn-secondary" id="simKoikoiMinus">−</button>
+        <span class="sim-koikoi-count" id="simKoikoiCount">0</span>
+        <button class="btn-secondary" id="simKoikoiPlus">+</button>
+      </div>
+
+      <div class="yaku-list" id="simResultBody"></div>
+
+      <div class="guide-section">
+        <div class="guide-section-title">Tap cards below to add or remove them</div>
+        <div class="sim-deck-grid" id="simDeckGrid"></div>
+      </div>
+
+      <button class="btn-secondary btn-block" id="simBackBtn">Back to Lobby</button>
     </div>
   </div>
 
@@ -486,7 +530,7 @@
   <div class="modal">
     <h2 id="roundEndTitle">Round complete</h2>
     <div class="yaku-list" id="roundEndBody"></div>
-    <button class="btn-primary btn-block" id="nextRoundBtn">Next Round</button>
+    <div id="roundEndReadyArea"></div>
   </div>
 </div>
 
@@ -607,10 +651,32 @@ function mulberry32(seed) {
   };
 }
 
-function hasFourOfSameMonth(cards) {
+function monthCounts(cards) {
   const counts = {};
   for (const c of cards) counts[c.month] = (counts[c.month]||0)+1;
-  return Object.values(counts).some(v => v >= 4);
+  return counts;
+}
+function hasFourOfSameMonth(cards) {
+  return Object.values(monthCounts(cards)).some(v => v >= 4);
+}
+// Four pairs: the 8 cards resolve into exactly 4 distinct months, each appearing
+// exactly twice (used for both the field-void check and the hand Teyaku check).
+function hasFourPairs(cards) {
+  const values = Object.values(monthCounts(cards));
+  return values.length === 4 && values.every(v => v === 2);
+}
+
+// Teyaku: automatic-win hands (Teshi / Kuttsuki), checked on each player's 8-card
+// hand right after dealing, before any play happens. Worth 6 points, per Sloperama
+// and Wikipedia's Koi-Koi rules pages.
+function detectTeyaku(hand) {
+  if (hasFourOfSameMonth(hand)) {
+    return { key: 'teshi', name: 'Teshi — dealt four cards of one suit', points: 6 };
+  }
+  if (hasFourPairs(hand)) {
+    return { key: 'kuttsuki', name: 'Kuttsuki — dealt four matching pairs', points: 6 };
+  }
+  return null;
 }
 
 function dealRound(seed) {
@@ -621,7 +687,8 @@ function dealRound(seed) {
     const handA = deck.splice(0, 8);
     const handB = deck.splice(0, 8);
     const field = deck.splice(0, 8);
-    if (!hasFourOfSameMonth(field) || attempt > 25) {
+    // A quad or four-pairs face-up on the table voids the deal and forces a redeal.
+    if ((!hasFourOfSameMonth(field) && !hasFourPairs(field)) || attempt > 25) {
       return { deck, handA, handB, field };
     }
     attempt++;
@@ -645,7 +712,8 @@ function computeYaku(captured) {
   } else if (brights.length === 4) {
     if (hasRainMan) yaku.push({ key:'ameshiko', name:'Rainy Four Brights (Ame-Shiko)', points:7 });
     else yaku.push({ key:'shiko', name:'Four Brights (Shiko)', points:8 });
-  } else if (brights.length === 3) {
+  } else if (brights.length === 3 && !hasRainMan) {
+    // Sanko excludes the Rain Man — 3 brights including him score no bright-yaku here.
     yaku.push({ key:'sanko', name:'Three Brights (Sanko)', points:5 });
   }
 
@@ -654,6 +722,16 @@ function computeYaku(captured) {
   const hasButterfly = animals.some(c => c.month === 6);
   if (hasBoar && hasDeer && hasButterfly) {
     yaku.push({ key:'inoshikacho', name:'Boar-Deer-Butterfly (Ino-Shika-Cho)', points:5 });
+  }
+
+  const hasFullMoon = brights.some(c => c.month === 8);
+  const hasCurtain = brights.some(c => c.month === 3);
+  const hasSakeCup = animals.some(c => c.month === 9);
+  if (hasFullMoon && hasSakeCup) {
+    yaku.push({ key:'tsukimizake', name:'Moon Viewing (Tsukimi-zake)', points:5 });
+  }
+  if (hasCurtain && hasSakeCup) {
+    yaku.push({ key:'hanamizake', name:'Cherry Blossom Viewing (Hanami-zake)', points:5 });
   }
 
   if (animals.length >= 5) {
@@ -667,9 +745,14 @@ function computeYaku(captured) {
   const blue = ribbons.filter(r => r.ribbon === 'blue');
   const hasAkatan = poetry.length === 3;
   const hasAotan = blue.length === 3;
-  if (hasAkatan) yaku.push({ key:'akatan', name:'Red Poetry Ribbons (Akatan)', points:5 });
-  if (hasAotan) yaku.push({ key:'aotan', name:'Blue Ribbons (Aotan)', points:5 });
-  if (hasAkatan && hasAotan) yaku.push({ key:'ao_aka_bonus', name:'Akatan + Aotan Bonus', points:5 });
+  if (hasAkatan && hasAotan) {
+    // Combined Chofuku replaces the individual 5+5 scores (10 total), not additive.
+    yaku.push({ key:'ao_aka_chofuku', name:'Akatan + Aotan (Chofuku)', points:10 });
+  } else if (hasAkatan) {
+    yaku.push({ key:'akatan', name:'Red Poetry Ribbons (Akatan)', points:5 });
+  } else if (hasAotan) {
+    yaku.push({ key:'aotan', name:'Blue Ribbons (Aotan)', points:5 });
+  }
 
   if (plains.length >= 10) {
     yaku.push({ key:'kasu', name:'Plains (Kasu)', points: 1 + (plains.length - 10) });
@@ -693,6 +776,13 @@ let myName = 'You', oppName = 'Opponent';
 let state = null;      // authoritative game state (host owns it; guest receives copies)
 let selectedHandCard = null; // local-only UI state: hand card the current player has tapped but not yet confirmed
 let guideOpen = false;        // local-only UI state: Yaku/Deck guide popup, default off
+
+// Yaku Scoring Simulator: entirely local, lobby-only UI — not part of any game
+// session or saved state. Lets a player tap arbitrary cards to see what they'd
+// score, independent of an actual match (also useful for physical-table play).
+let simSelected = [];   // array of card objects the user has "captured" in the simulator
+let simKoikoiCalls = 0; // Koi-Koi multiplier the user is testing against
+let _simDeckCache = null;
 
 let hostPeerId = null;      // stable custom Peer ID for the host, persisted so a refresh can reclaim the same room code
 let lastJoinedCode = null;  // room code the guest connected with, so a refresh can reconnect
@@ -733,16 +823,26 @@ function createInitialState(numRounds, names, maxKoikoiCalls) {
     deck: [], hands: [[],[]], field: [], captured: [[],[]],
     ackTotal: [0,0], koikoiCalls: 0, lastScorer: null,
     maxKoikoiCalls: (typeof maxKoikoiCalls === 'number') ? maxKoikoiCalls : -1,
-    turn: 1, pendingCaptureChoice: null, pendingKoikoi: null, roundResult: null
+    turn: 1, pendingCaptureChoice: null, pendingKoikoi: null, roundResult: null,
+    // Both seats must confirm before the round actually advances (reset on every
+    // transition into 'round-end' — see endRound / endRoundDraw / endRoundTeyaku).
+    nextRoundReady: [false, false]
   };
 }
 
 // `starter` (optional): which seat goes first this round. Round 1 omits it and
 // falls back to st.dealer (set by the dealer draw). Round 2+ passes in the
 // previous round's winner, per the "winner goes first" convention.
-function dealNewRound(st, starter) {
+// `redealAttempt` is internal, used only to cap the recursive-redeal safety net
+// below (mirrors the attempt cap already used inside dealRound()).
+function dealNewRound(st, starter, redealAttempt) {
+  redealAttempt = redealAttempt || 0;
   const seed = Math.floor(Math.random() * 2**31);
   const { deck, handA, handB, field } = dealRound(seed);
+
+  const teyakuA = detectTeyaku(handA);
+  const teyakuB = detectTeyaku(handB);
+
   st.deck = deck;
   st.hands = [handA, handB];
   st.field = field;
@@ -754,8 +854,40 @@ function dealNewRound(st, starter) {
   st.pendingCaptureChoice = null;
   st.pendingKoikoi = null;
   st.roundResult = null;
+
+  if (teyakuA && teyakuB) {
+    // Both players dealt an automatic-win hand at once. The standard rules texts
+    // don't cover this (vanishingly rare) case, so we treat it like the analogous
+    // field-void rules: void the deal and redeal, same starter, up to 25 tries.
+    if (redealAttempt < 25) {
+      addLog(st, `Both players were dealt an automatic-win hand at once — redealing.`);
+      dealNewRound(st, starter, redealAttempt + 1);
+      return;
+    }
+    endRoundTeyaku(st, teyakuA.points >= teyakuB.points ? 0 : 1, teyakuA.points >= teyakuB.points ? teyakuA : teyakuB);
+    return;
+  }
+  if (teyakuA || teyakuB) {
+    endRoundTeyaku(st, teyakuA ? 0 : 1, teyakuA || teyakuB);
+    return;
+  }
+
   st.phase = 'playing';
   addLog(st, `Round ${st.round} dealt. ${st.names[st.turn]} goes first.`);
+}
+
+// A Teyaku (Teshi/Kuttsuki) hand is an automatic win dealt before any play
+// happens: the round ends immediately, worth a flat 6 points, no koi-koi
+// multiplier applies. Reuses the normal round-end/next-round flow.
+function endRoundTeyaku(st, winner, teyaku) {
+  st.scores[winner] += teyaku.points;
+  st.phase = 'round-end';
+  st.nextRoundReady = [false, false];
+  st.roundResult = {
+    winner, basePoints: teyaku.points, multiplier: 1, final: teyaku.points,
+    yaku: [{ name: teyaku.name, points: teyaku.points }],
+  };
+  addLog(st, `${st.names[winner]} was dealt ${teyaku.name} — automatic win, ${teyaku.points} points! No cards were played this round.`);
 }
 
 // Traditional dealer draw: both players blindly draw one card. Earliest month
@@ -824,6 +956,13 @@ function applyAction(action, playerIdx) {
     }
     case 'nextRound': {
       if (st.phase !== 'round-end') return;
+      if (!st.nextRoundReady) st.nextRoundReady = [false, false];
+      if (playerIdx === 0 || playerIdx === 1) st.nextRoundReady[playerIdx] = true;
+      if (!(st.nextRoundReady[0] && st.nextRoundReady[1])) {
+        // Only one seat has confirmed so far — stay on the round-end screen and
+        // wait for the other seat before actually dealing the next round.
+        return;
+      }
       if (st.round >= st.numRounds) {
         st.phase = 'game-end';
       } else {
@@ -942,12 +1081,14 @@ function endRound(st, winner, basePoints) {
   const final = basePoints * multiplier;
   st.scores[winner] += final;
   st.phase = 'round-end';
+  st.nextRoundReady = [false, false];
   st.roundResult = { winner, basePoints, multiplier, final, yaku: computeYaku(st.captured[winner]) };
   addLog(st, `${st.names[winner]} wins the round: ${basePoints} x${multiplier} = ${final} points.`);
 }
 
 function endRoundDraw(st) {
   st.phase = 'round-end';
+  st.nextRoundReady = [false, false];
   st.roundResult = { winner: null, final: 0 };
   addLog(st, `Round ended with no yaku scored — no points awarded.`);
 }
@@ -977,6 +1118,10 @@ function sendAction(action) {
 function actingSeatForHotseat(action) {
   if (action.type === 'koikoiChoice') return state.pendingKoikoi ? state.pendingKoikoi.player : state.turn;
   if (action.type === 'chooseCapture') return state.pendingCaptureChoice ? state.pendingCaptureChoice.player : state.turn;
+  // Round-end "ready" confirmations aren't tied to whose turn it is (both seats
+  // can confirm in either order from the shared device), so the seat has to be
+  // supplied explicitly by whichever ready button was clicked.
+  if (action.type === 'nextRound' && (action.seat === 0 || action.seat === 1)) return action.seat;
   return state.turn;
 }
 
@@ -1285,13 +1430,15 @@ const YAKU_REFERENCE = [
   ['Goko — Five Brights', '10 pts', 'All 5 bright cards.', c => c.type === 'bright'],
   ['Shiko — Four Brights', '8 pts', '4 brights, not including Rain Man.', c => c.type === 'bright' && c.name !== 'Rain Man'],
   ['Ame-Shiko — Rainy Four Brights', '7 pts', '4 brights, including Rain Man.', c => c.type === 'bright'],
-  ['Sanko — Three Brights', '5 pts', 'Any 3 bright cards.', c => c.type === 'bright'],
+  ['Sanko — Three Brights', '5 pts', '3 brights, not including Rain Man.', c => c.type === 'bright' && c.name !== 'Rain Man'],
   ['Ino-Shika-Cho', '5 pts', 'Boar + Deer + Butterfly.', c => ['Boar', 'Deer', 'Butterflies'].includes(c.name)],
+  ['Tsukimi-zake — Moon Viewing', '5 pts', 'Full Moon + Sake Cup.', c => c.name === 'Full Moon' || c.name === 'Sake Cup'],
+  ['Hanami-zake — Cherry Blossom Viewing', '5 pts', 'Curtain + Sake Cup.', c => c.name === 'Curtain' || c.name === 'Sake Cup'],
   ['Tane — Animals', '1+ pts', '5+ animal cards (+1 per extra card).', c => c.type === 'animal'],
   ['Tanzaku — Ribbons', '1+ pts', '5+ ribbon cards (+1 per extra card).', c => c.type === 'ribbon'],
-  ['Akatan — Red Poetry Ribbons', '5 pts', 'All 3 poetry ribbons.', c => c.ribbon === 'poetry'],
-  ['Aotan — Blue Ribbons', '5 pts', 'All 3 blue ribbons.', c => c.ribbon === 'blue'],
-  ['Akatan + Aotan Bonus', '+5 pts', 'Both Akatan and Aotan completed.', c => c.ribbon === 'poetry' || c.ribbon === 'blue'],
+  ['Akatan — Red Poetry Ribbons', '5 pts', 'All 3 poetry ribbons (10 total if combined with Aotan, not 5+5+bonus).', c => c.ribbon === 'poetry'],
+  ['Aotan — Blue Ribbons', '5 pts', 'All 3 blue ribbons (10 total if combined with Akatan, not 5+5+bonus).', c => c.ribbon === 'blue'],
+  ['Akatan + Aotan (Chofuku)', '10 pts', 'Both completed together — replaces the individual 5+5 scores.', c => c.ribbon === 'poetry' || c.ribbon === 'blue'],
   ['Kasu — Plains', '1+ pts', '10+ plain cards (+1 per extra card).', c => c.type === 'plain'],
 ];
 
@@ -1315,6 +1462,71 @@ function renderGuideModal() {
     return `<div class="guide-month"><div class="guide-month-label">${cards[0].monthName}</div>
       <div class="guide-month-cards">${cards.map(miniCardHTML).join('')}</div></div>`;
   }).join('');
+}
+
+/* ---------- Yaku Scoring Simulator (lobby-only, no game session involved) ---------- */
+function openSimulator() {
+  if (!_simDeckCache) _simDeckCache = buildDeck();
+  simSelected = [];
+  simKoikoiCalls = 0;
+  hide('lobbyScreen');
+  show('simScreen');
+  renderSimulator();
+}
+
+function closeSimulator() {
+  hide('simScreen');
+  show('lobbyScreen');
+}
+
+function toggleSimCard(id) {
+  const idx = simSelected.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    simSelected.splice(idx, 1);
+  } else {
+    const card = _simDeckCache.find(c => c.id === id);
+    if (card) simSelected.push(card);
+  }
+  renderSimulator();
+}
+
+function renderSimulator() {
+  if (!_simDeckCache) _simDeckCache = buildDeck();
+  const selectedIds = new Set(simSelected.map(c => c.id));
+
+  // Card picker: every card in the deck, grouped by month, tap to toggle.
+  const byMonth = {};
+  _simDeckCache.forEach(c => { (byMonth[c.month] = byMonth[c.month] || []).push(c); });
+  $('simDeckGrid').innerHTML = Object.keys(byMonth).sort((a, b) => a - b).map(m => {
+    const cards = byMonth[m];
+    return `<div class="sim-month"><div class="sim-month-label">${cards[0].monthName}</div>
+      <div class="sim-month-cards">${cards.map(c => cardHTML(c, 'clickable' + (selectedIds.has(c.id) ? ' selected' : ''))).join('')}</div></div>`;
+  }).join('');
+  $('simDeckGrid').querySelectorAll('.card').forEach(el => {
+    el.onclick = () => toggleSimCard(Number(el.dataset.id));
+  });
+
+  // Captured-so-far summary.
+  $('simCapturedCount').textContent = simSelected.length;
+  $('simCapturedList').innerHTML = simSelected.length
+    ? categorizedCaptureHTML(simSelected)
+    : `<div class="hint">No cards selected yet — tap cards below to add them.</div>`;
+
+  // Koi-Koi counter.
+  $('simKoikoiCount').textContent = simKoikoiCalls;
+
+  // Live score, using the exact same computeYaku() the real game uses.
+  const yakuList = computeYaku(simSelected);
+  const basePoints = totalPoints(yakuList);
+  const multiplier = Math.pow(2, simKoikoiCalls);
+  const final = basePoints * multiplier;
+  if (yakuList.length === 0) {
+    $('simResultBody').innerHTML = `<div>No yaku completed yet with these cards.</div>`;
+  } else {
+    $('simResultBody').innerHTML = yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
+      + (multiplier > 1 ? `<div><span>Koi-Koi multiplier (${simKoikoiCalls} call${simKoikoiCalls === 1 ? '' : 's'})</span><span>x${multiplier}</span></div>` : '')
+      + `<div class="yaku-total"><span>Total score</span><span>${final}</span></div>`;
+  }
 }
 
 function renderDealerDrawScreen() {
@@ -1560,6 +1772,18 @@ function renderKoikoiModal(viewSeat) {
   }
 }
 
+// Confirms this seat is ready to advance. In hotseat this may only mark one of
+// two required flags (round stays on 'round-end' until the other seat also
+// confirms), so the pass-screen handoff only fires once the round has actually
+// advanced past 'round-end' as a result of this click.
+function confirmNextRound(seat) {
+  const wasRoundEnd = state.phase === 'round-end';
+  sendAction({ type: 'nextRound', seat });
+  if (localHotseat && wasRoundEnd && state.phase !== 'round-end') {
+    if (state.phase !== 'game-end') showPassScreen(); else render();
+  }
+}
+
 function renderRoundEndModal(viewSeat) {
   if (state.phase !== 'round-end') { hide('roundEndModal'); return; }
   show('roundEndModal');
@@ -1574,15 +1798,26 @@ function renderRoundEndModal(viewSeat) {
       + `<div class="yaku-total"><span>Round score</span><span>${r.final}</span></div>`
       + `<div style="margin-top:10px; text-align:center; color: var(--muted);">Overall: ${state.names[0]} ${state.scores[0]} — ${state.names[1]} ${state.scores[1]}</div>`;
   }
-  $('nextRoundBtn').textContent = state.round >= state.numRounds ? 'See Final Result' : 'Next Round';
-  $('nextRoundBtn').onclick = () => {
-    if (localHotseat) {
-      sendAction({ type: 'nextRound' });
-      if (state.phase !== 'game-end') showPassScreen(); else render();
-    } else {
-      sendAction({ type: 'nextRound' });
+  const ready = state.nextRoundReady || [false, false];
+  const label = state.round >= state.numRounds ? 'See Final Result' : 'Next Round';
+  const area = $('roundEndReadyArea');
+  if (localHotseat) {
+    // Both seats share this one device — the round-end summary is public info,
+    // so either seat may confirm first, in any order.
+    area.innerHTML = [0, 1].map(seat => ready[seat]
+      ? `<div class="hint" style="margin-top:8px;">✓ ${state.names[seat]} is ready</div>`
+      : `<button class="btn-primary btn-block" style="margin-top:8px;" id="readyBtn${seat}">${state.names[seat]}: ${label}</button>`
+    ).join('');
+    for (const seat of [0, 1]) {
+      const btn = $('readyBtn' + seat);
+      if (btn) btn.onclick = () => confirmNextRound(seat);
     }
-  };
+  } else if (ready[viewSeat]) {
+    area.innerHTML = `<div class="hint">Waiting for ${state.names[1 - viewSeat]}…</div>`;
+  } else {
+    area.innerHTML = `<button class="btn-primary btn-block" id="nextRoundBtn">${label}</button>`;
+    $('nextRoundBtn').onclick = () => confirmNextRound(viewSeat);
+  }
 }
 
 function renderGameEndModal(viewSeat) {
@@ -1639,6 +1874,12 @@ $('lobbyGuideToggleBtn').onclick = () => {
 };
 $('guideCloseBtn').onclick = () => { guideOpen = false; hide('guideModal'); };
 $('captureZoomCloseBtn').onclick = () => hide('captureZoomModal');
+
+$('lobbySimBtn').onclick = () => openSimulator();
+$('simBackBtn').onclick = () => closeSimulator();
+$('simClearBtn').onclick = () => { simSelected = []; renderSimulator(); };
+$('simKoikoiMinus').onclick = () => { simKoikoiCalls = Math.max(0, simKoikoiCalls - 1); renderSimulator(); };
+$('simKoikoiPlus').onclick = () => { simKoikoiCalls = Math.min(9, simKoikoiCalls + 1); renderSimulator(); };
 
 // intercept render() calls to route through pass-screen in hotseat mode when turn changes,
 // and to persist state to localStorage on every render so a refresh mid-game can resume.

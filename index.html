@@ -466,8 +466,8 @@
 
       <div class="sim-koikoi-row">
         <div class="sim-koikoi-text">
-          <span class="sim-koikoi-title">Koi-Koi was called this round</span>
-          <span class="sim-koikoi-hint">By either player — doubles whoever ends up winning the round, caller included.</span>
+          <span class="sim-koikoi-title">Your opponent called Koi-Koi this round</span>
+          <span class="sim-koikoi-hint">Doubles your score — calling Koi-Koi never doubles your own, only your opponent's.</span>
         </div>
         <label class="sim-toggle">
           <input type="checkbox" id="simKoikoiToggle">
@@ -812,13 +812,16 @@ function totalPoints(yakuList) {
   return yakuList.reduce((s, y) => s + y.points, 0);
 }
 
-// Standard Koi-Koi doubling: two independent, binary bonuses, not a running
-// per-call multiplier. (1) Koi-Koi was called at all this round (by either
-// player, any number of times) -> x2. (2) The winning yaku is worth 7+ points
-// on its own -> another x2. Max combined bonus is x4, regardless of how many
-// times Koi-Koi was called.
-function koikoiMultiplier(koikoiCalls, basePoints) {
-  return (koikoiCalls > 0 ? 2 : 1) * (basePoints >= 7 ? 2 : 1);
+// Standard Koi-Koi doubling: two independent, binary bonuses.
+// (1) Your OPPONENT called Koi-Koi at some point this round (regardless of
+// whether you also called it) -> your winning score x2. Calling Koi-Koi never
+// doubles your OWN score by itself — it's a pure risk: you're gambling that
+// you (not your opponent) form the next yaku, and if your opponent gets there
+// first, they collect the double you exposed them to.
+// (2) The winning yaku is worth 7+ points on its own -> another x2.
+// Max combined bonus is x4, regardless of how many times Koi-Koi was called.
+function koikoiMultiplier(opponentCalledKoikoi, basePoints) {
+  return (opponentCalledKoikoi ? 2 : 1) * (basePoints >= 7 ? 2 : 1);
 }
 
 /* =====================================================================
@@ -837,7 +840,7 @@ let guideOpen = false;        // local-only UI state: Yaku/Deck guide popup, def
 // session or saved state. Lets a player tap arbitrary cards to see what they'd
 // score, independent of an actual match (also useful for physical-table play).
 let simSelected = [];   // array of card objects the user has "captured" in the simulator
-let simKoikoiCalls = 0; // Koi-Koi multiplier the user is testing against
+let simKoikoiCalls = 0; // 0/1: whether the (simulated) OPPONENT called Koi-Koi this round
 let _simDeckCache = null;
 
 let hostPeerId = null;      // stable custom Peer ID for the host, persisted so a refresh can reclaim the same room code
@@ -877,7 +880,7 @@ function createInitialState(numRounds, names, maxKoikoiCalls) {
     phase: 'playing',
     log: [],
     deck: [], hands: [[],[]], field: [], captured: [[],[]],
-    ackTotal: [0,0], koikoiCalls: 0, lastScorer: null,
+    ackTotal: [0,0], koikoiCalls: 0, koikoiCallers: [], lastScorer: null,
     maxKoikoiCalls: (typeof maxKoikoiCalls === 'number') ? maxKoikoiCalls : -1,
     turn: 1, pendingCaptureChoice: null, pendingKoikoi: null, roundResult: null,
     // Both seats must confirm before the round actually advances (reset on every
@@ -905,6 +908,7 @@ function dealNewRound(st, starter, redealAttempt) {
   st.captured = [[], []];
   st.ackTotal = [0, 0];
   st.koikoiCalls = 0;
+  st.koikoiCallers = [];
   st.lastScorer = null;
   st.turn = (starter === 0 || starter === 1) ? starter : st.dealer;
   st.pendingCaptureChoice = null;
@@ -1002,8 +1006,9 @@ function applyAction(action, playerIdx) {
       } else {
         st.ackTotal[playerIdx] = pend.points;
         st.koikoiCalls += 1;
+        if (!st.koikoiCallers.includes(playerIdx)) st.koikoiCallers.push(playerIdx);
         st.lastScorer = { player: playerIdx, points: pend.points };
-        addLog(st, `${st.names[playerIdx]} called Koi-Koi! (score now doubles if anyone scores again)`);
+        addLog(st, `${st.names[playerIdx]} called Koi-Koi! (if the opponent scores next, their score doubles)`);
         st.pendingKoikoi = null;
         st.phase = 'playing';
         checkHandsEmptyOrPassTurn(st, playerIdx);
@@ -1133,12 +1138,17 @@ function checkHandsEmptyOrPassTurn(st, playerIdx) {
 }
 
 function endRound(st, winner, basePoints) {
-  const multiplier = koikoiMultiplier(st.koikoiCalls, basePoints);
+  // The x2 Koi-Koi bonus goes to the WINNER, but only if their OPPONENT was
+  // the one who called Koi-Koi at some point this round — calling it never
+  // doubles your own score. (If both players called it at different points,
+  // the winner's opponent still counts as having called it.)
+  const opponentCalledKoikoi = st.koikoiCallers.some(p => p !== winner);
+  const multiplier = koikoiMultiplier(opponentCalledKoikoi, basePoints);
   const final = basePoints * multiplier;
   st.scores[winner] += final;
   st.phase = 'round-end';
   st.nextRoundReady = [false, false];
-  st.roundResult = { winner, basePoints, multiplier, final, koikoiCalled: st.koikoiCalls > 0, yaku: computeYaku(st.captured[winner]) };
+  st.roundResult = { winner, basePoints, multiplier, final, koikoiCalled: opponentCalledKoikoi, yaku: computeYaku(st.captured[winner]) };
   addLog(st, `${st.names[winner]} wins the round: ${basePoints} x${multiplier} = ${final} points.`);
 }
 
@@ -1606,7 +1616,7 @@ function renderSimulator() {
         : '';
       return `<div><span>${y.name}</span><span>${y.points}</span></div>${cardsRow}`;
     }).join('')
-      + (simKoikoiCalls > 0 ? `<div><span>Koi-Koi was called this round</span><span>x2</span></div>` : '')
+      + (simKoikoiCalls > 0 ? `<div><span>Opponent called Koi-Koi</span><span>x2</span></div>` : '')
       + (basePoints >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '')
       + `<div class="yaku-total"><span>Total score</span><span>${final}</span></div>`;
   }
@@ -1830,11 +1840,14 @@ function renderKoikoiModal(viewSeat) {
   const pend = state.pendingKoikoi;
   show('koikoiModal');
   $('koikoiTitle').textContent = pend.player === viewSeat ? 'You completed a yaku!' : `${state.names[pend.player]} completed a yaku!`;
-  const priorMultiplier = koikoiMultiplier(state.koikoiCalls, pend.points);
+  // If pend.player stops now (Shobu), they're the winner — so the bonus only
+  // applies if their OPPONENT was the one who called Koi-Koi this round.
+  const opponentCalledKoikoi = state.koikoiCallers.some(p => p !== pend.player);
+  const priorMultiplier = koikoiMultiplier(opponentCalledKoikoi, pend.points);
   const shobuNowScore = pend.points * priorMultiplier;
   $('koikoiYakuList').innerHTML = pend.yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
     + `<div class="yaku-total"><span>Yaku total</span><span>${pend.points}</span></div>`
-    + (state.koikoiCalls > 0 ? `<div><span>Koi-Koi called this round</span><span>x2</span></div>` : '')
+    + (opponentCalledKoikoi ? `<div><span>The other player called Koi-Koi earlier</span><span>x2</span></div>` : '')
     + (pend.points >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '')
     + (priorMultiplier > 1
         ? `<div class="yaku-total"><span>Score if you Shobu now</span><span>${shobuNowScore}</span></div>`
@@ -1880,7 +1893,7 @@ function renderRoundEndModal(viewSeat) {
     $('roundEndBody').innerHTML = r.yaku.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
       + `<div class="yaku-total"><span>Yaku total</span><span>${r.basePoints}</span></div>`
       + (r.multiplier > 1 ? [
-          r.koikoiCalled ? `<div><span>Koi-Koi called this round</span><span>x2</span></div>` : '',
+          r.koikoiCalled ? `<div><span>${state.names[1 - r.winner]} called Koi-Koi earlier</span><span>x2</span></div>` : '',
           r.basePoints >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '',
         ].join('') : '')
       + `<div class="yaku-total"><span>Round score</span><span>${r.final}</span></div>`

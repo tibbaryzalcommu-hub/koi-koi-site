@@ -43,6 +43,9 @@
     --hairline: rgba(0,0,0,.08);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* Casual-copy deterrents: no drag-out, no long-press "save image" callout.
+     (Does not stop dev-tools/Network-tab access — see note to Zal.) */
+  img { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none; }
   html, body {
     margin: 0; padding: 0; height: 100%;
     background: radial-gradient(circle at 50% 0%, var(--bg-grad-1), var(--bg-grad-2) 70%);
@@ -347,7 +350,7 @@
     </details>
 
     <div class="hint" style="margin-top:6px;">
-      Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), used with thanks.
+      Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), licensed for use in this game only — please don't redistribute the image files.
     </div>
   </div>
 
@@ -507,7 +510,7 @@
       <div id="guideDeckGrid" class="guide-deck-grid"></div>
     </div>
     <div class="hint" style="margin-top:10px;">
-      Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), used with thanks.
+      Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), licensed for use in this game only — please don't redistribute the image files.
     </div>
     <button class="btn-primary btn-block" id="guideCloseBtn" style="margin-top:14px;">Close</button>
   </div>
@@ -548,6 +551,12 @@ function toggleTheme() {
   try { saved = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) {}
   applyTheme(saved);
 })();
+
+// Block right-click "Save Image As" on card art. This only deters casual
+// copying — anyone using browser dev tools can still fetch the image files.
+document.addEventListener('contextmenu', (e) => {
+  if (e.target && e.target.tagName === 'IMG') e.preventDefault();
+});
 
 /* =====================================================================
    CORE GAME LOGIC (deck, dealing, yaku) — pure functions, no DOM

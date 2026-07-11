@@ -248,6 +248,28 @@
   .yaku-list { text-align:left; background: var(--deep-bg); border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
   .yaku-list div { display:flex; justify-content:space-between; padding: 3px 0; }
   .yaku-total { font-weight:800; font-size: 16px; color: var(--accent); border-top: 1px solid var(--border); margin-top:6px; padding-top:6px; }
+  .yaku-list .yaku-cards-row { justify-content:flex-start; align-items:center; flex-wrap:wrap; gap:4px; padding: 0 0 8px 0; }
+  .yaku-list .yaku-cards-row .mini-card { width: 24px; height: 35px; }
+
+  /* Sticky header inside scrollable modals (e.g. the Guide) — cancels the
+     modal's own padding so the bar spans edge-to-edge and pins to the top of
+     the modal's scroll area, keeping its Close button reachable without
+     scrolling down. */
+  .modal-sticky-header {
+    position: sticky; top: -28px; margin: -28px -28px 14px; padding: 14px 28px;
+    background: var(--panel2); z-index: 2; display:flex; align-items:center;
+    justify-content:space-between; gap:12px; border-bottom: 1px solid var(--border);
+  }
+  .modal-sticky-header h2 { margin:0; font-size:18px; text-align:left; }
+  .modal-sticky-header button { min-height:36px; padding:8px 18px; font-size:14px; flex-shrink:0; white-space:nowrap; }
+
+  /* Fixed "Back to Lobby" button for the full-screen Simulator, mirroring the
+     theme-toggle-btn pattern so it's always reachable without scrolling. It's
+     nested inside #simScreen so it hides automatically with that screen. */
+  .sim-back-btn {
+    position: fixed; top: 12px; left: 12px; z-index: 200;
+    min-height: 36px; padding: 8px 16px; font-size: 14px;
+  }
 
   @media (max-width: 640px) {
     #app { padding: 8px; }
@@ -275,6 +297,10 @@
     .modal { padding: 18px; max-width: 92vw; }
     .overlay { padding: 10px; }
     .yaku-list { font-size: 12px; padding: 8px 10px; }
+    .modal-sticky-header { top: -18px; margin: -18px -18px 14px; padding: 10px 18px; }
+    .modal-sticky-header h2 { font-size: 15px; }
+    .modal-sticky-header button { min-height: 32px; padding: 6px 12px; font-size: 12px; }
+    .sim-back-btn { top: 8px; left: 8px; padding: 6px 12px; font-size: 12px; }
 
     .action-bar .row > * { flex: 1 1 auto; }
     .guide-month-label { width: 70px; font-size: 11px; }
@@ -359,6 +385,7 @@
         Each round you're dealt 8 cards, 8 cards sit face-up on the field, and the rest form a draw deck.<br><br>
         <b>Your turn:</b> play a card from your hand. If it shares a month with a field card, you capture both. If it matches nothing, it stays on the field. Then draw the top deck card and repeat the same matching against the field.<br><br>
         <b>Yaku:</b> certain combinations of captured cards score points (e.g. three "bright" cards, five ribbons, boar+deer+butterfly, etc). The moment you complete or improve a yaku, you choose: <b>Koi-Koi</b> (keep playing for more points, but doubles the round's score if anyone scores again) or <b>Shobu</b> (bank the points now and end the round).<br><br>
+        <b>Scoring bonuses:</b> if Koi-Koi was called at all this round (any number of times), the final score doubles once. Separately, if the winning yaku is worth 7+ points on its own, that's another doubling. These two bonuses can combine for up to 4x total, but calling Koi-Koi more than once doesn't multiply the score further.<br><br>
         Highest total score after all rounds wins.
       </div>
     </details>
@@ -412,6 +439,7 @@
 
   <!-- ================= YAKU SCORING SIMULATOR ================= -->
   <div id="simScreen" class="hidden">
+    <button class="btn-secondary sim-back-btn" id="simBackBtn">← Back to Lobby</button>
     <h1>🧮 Yaku Scoring Simulator</h1>
     <div class="subtitle">Tap any cards to mark them "captured" and see what they'd score — handy for double-checking your count, even in a physical game.</div>
 
@@ -436,7 +464,6 @@
         <div class="sim-deck-grid" id="simDeckGrid"></div>
       </div>
 
-      <button class="btn-secondary btn-block" id="simBackBtn">Back to Lobby</button>
     </div>
   </div>
 
@@ -544,7 +571,10 @@
 
 <div id="guideModal" class="overlay hidden">
   <div class="modal" style="max-width:560px; text-align:left; max-height:82vh; overflow-y:auto;">
-    <h2 style="text-align:center;">📖 Yaku &amp; Deck Guide</h2>
+    <div class="modal-sticky-header">
+      <h2>📖 Yaku &amp; Deck Guide</h2>
+      <button class="btn-primary" id="guideCloseBtn">Close</button>
+    </div>
     <div class="guide-section">
       <div class="guide-section-title">Yaku (scoring combinations)</div>
       <div id="guideYakuList"></div>
@@ -556,7 +586,6 @@
     <div class="hint" style="margin-top:10px;">
       Card art by <a href="https://jcanabal.itch.io/hanafuda-deck-pixel-art" target="_blank" rel="noopener" style="color:var(--accent);">jcanabal</a> (itch.io), licensed for use in this game only — please don't redistribute the image files.
     </div>
-    <button class="btn-primary btn-block" id="guideCloseBtn" style="margin-top:14px;">Close</button>
   </div>
 </div>
 
@@ -763,6 +792,15 @@ function computeYaku(captured) {
 
 function totalPoints(yakuList) {
   return yakuList.reduce((s, y) => s + y.points, 0);
+}
+
+// Standard Koi-Koi doubling: two independent, binary bonuses, not a running
+// per-call multiplier. (1) Koi-Koi was called at all this round (by either
+// player, any number of times) -> x2. (2) The winning yaku is worth 7+ points
+// on its own -> another x2. Max combined bonus is x4, regardless of how many
+// times Koi-Koi was called.
+function koikoiMultiplier(koikoiCalls, basePoints) {
+  return (koikoiCalls > 0 ? 2 : 1) * (basePoints >= 7 ? 2 : 1);
 }
 
 /* =====================================================================
@@ -1077,12 +1115,12 @@ function checkHandsEmptyOrPassTurn(st, playerIdx) {
 }
 
 function endRound(st, winner, basePoints) {
-  const multiplier = Math.pow(2, st.koikoiCalls);
+  const multiplier = koikoiMultiplier(st.koikoiCalls, basePoints);
   const final = basePoints * multiplier;
   st.scores[winner] += final;
   st.phase = 'round-end';
   st.nextRoundReady = [false, false];
-  st.roundResult = { winner, basePoints, multiplier, final, yaku: computeYaku(st.captured[winner]) };
+  st.roundResult = { winner, basePoints, multiplier, final, koikoiCalled: st.koikoiCalls > 0, yaku: computeYaku(st.captured[winner]) };
   addLog(st, `${st.names[winner]} wins the round: ${basePoints} x${multiplier} = ${final} points.`);
 }
 
@@ -1442,6 +1480,25 @@ const YAKU_REFERENCE = [
   ['Kasu — Plains', '1+ pts', '10+ plain cards (+1 per extra card).', c => c.type === 'plain'],
 ];
 
+// Maps each computeYaku() result's `key` to the exact subset of a captured-card
+// list that earned it — used by the simulator to show "which cards made this
+// yaku" thumbnails next to each score line. Kept in lockstep with computeYaku().
+const YAKU_CARD_FILTERS = {
+  goko: cards => cards.filter(c => c.type === 'bright'),
+  shiko: cards => cards.filter(c => c.type === 'bright'),
+  ameshiko: cards => cards.filter(c => c.type === 'bright'),
+  sanko: cards => cards.filter(c => c.type === 'bright'),
+  inoshikacho: cards => cards.filter(c => c.type === 'animal' && [6, 7, 10].includes(c.month)),
+  tsukimizake: cards => cards.filter(c => (c.type === 'bright' && c.month === 8) || (c.type === 'animal' && c.month === 9)),
+  hanamizake: cards => cards.filter(c => (c.type === 'bright' && c.month === 3) || (c.type === 'animal' && c.month === 9)),
+  tane: cards => cards.filter(c => c.type === 'animal'),
+  tanzaku: cards => cards.filter(c => c.type === 'ribbon'),
+  akatan: cards => cards.filter(c => c.ribbon === 'poetry'),
+  aotan: cards => cards.filter(c => c.ribbon === 'blue'),
+  ao_aka_chofuku: cards => cards.filter(c => c.ribbon === 'poetry' || c.ribbon === 'blue'),
+  kasu: cards => cards.filter(c => c.type === 'plain'),
+};
+
 let _guideDeckCache = null;
 function renderGuideModal() {
   if (!_guideDeckCache) _guideDeckCache = buildDeck();
@@ -1518,13 +1575,21 @@ function renderSimulator() {
   // Live score, using the exact same computeYaku() the real game uses.
   const yakuList = computeYaku(simSelected);
   const basePoints = totalPoints(yakuList);
-  const multiplier = Math.pow(2, simKoikoiCalls);
+  const multiplier = koikoiMultiplier(simKoikoiCalls, basePoints);
   const final = basePoints * multiplier;
   if (yakuList.length === 0) {
     $('simResultBody').innerHTML = `<div>No yaku completed yet with these cards.</div>`;
   } else {
-    $('simResultBody').innerHTML = yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
-      + (multiplier > 1 ? `<div><span>Koi-Koi multiplier (${simKoikoiCalls} call${simKoikoiCalls === 1 ? '' : 's'})</span><span>x${multiplier}</span></div>` : '')
+    $('simResultBody').innerHTML = yakuList.map(y => {
+      const filterFn = YAKU_CARD_FILTERS[y.key];
+      const matchingCards = filterFn ? filterFn(simSelected) : [];
+      const cardsRow = matchingCards.length
+        ? `<div class="yaku-cards-row">${matchingCards.map(miniCardHTML).join('')}</div>`
+        : '';
+      return `<div><span>${y.name}</span><span>${y.points}</span></div>${cardsRow}`;
+    }).join('')
+      + (simKoikoiCalls > 0 ? `<div><span>Koi-Koi called this round (any number of times)</span><span>x2</span></div>` : '')
+      + (basePoints >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '')
       + `<div class="yaku-total"><span>Total score</span><span>${final}</span></div>`;
   }
 }
@@ -1747,13 +1812,14 @@ function renderKoikoiModal(viewSeat) {
   const pend = state.pendingKoikoi;
   show('koikoiModal');
   $('koikoiTitle').textContent = pend.player === viewSeat ? 'You completed a yaku!' : `${state.names[pend.player]} completed a yaku!`;
-  const priorMultiplier = Math.pow(2, state.koikoiCalls);
+  const priorMultiplier = koikoiMultiplier(state.koikoiCalls, pend.points);
   const shobuNowScore = pend.points * priorMultiplier;
   $('koikoiYakuList').innerHTML = pend.yakuList.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
     + `<div class="yaku-total"><span>Yaku total</span><span>${pend.points}</span></div>`
+    + (state.koikoiCalls > 0 ? `<div><span>Koi-Koi called this round</span><span>x2</span></div>` : '')
+    + (pend.points >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '')
     + (priorMultiplier > 1
-        ? `<div><span>Koi-Koi multiplier (already called ${state.koikoiCalls}x)</span><span>x${priorMultiplier}</span></div>`
-          + `<div class="yaku-total"><span>Score if you Shobu now</span><span>${shobuNowScore}</span></div>`
+        ? `<div class="yaku-total"><span>Score if you Shobu now</span><span>${shobuNowScore}</span></div>`
         : '');
   const capHint = $('koikoiCapHint');
   if (state.maxKoikoiCalls >= 0) {
@@ -1794,7 +1860,11 @@ function renderRoundEndModal(viewSeat) {
   } else {
     $('roundEndTitle').textContent = `${state.names[r.winner]} wins the round!`;
     $('roundEndBody').innerHTML = r.yaku.map(y => `<div><span>${y.name}</span><span>${y.points}</span></div>`).join('')
-      + `<div><span>Koi-Koi multiplier</span><span>x${r.multiplier}</span></div>`
+      + `<div class="yaku-total"><span>Yaku total</span><span>${r.basePoints}</span></div>`
+      + (r.multiplier > 1 ? [
+          r.koikoiCalled ? `<div><span>Koi-Koi called this round</span><span>x2</span></div>` : '',
+          r.basePoints >= 7 ? `<div><span>Yaku worth 7+ points bonus</span><span>x2</span></div>` : '',
+        ].join('') : '')
       + `<div class="yaku-total"><span>Round score</span><span>${r.final}</span></div>`
       + `<div style="margin-top:10px; text-align:center; color: var(--muted);">Overall: ${state.names[0]} ${state.scores[0]} — ${state.names[1]} ${state.scores[1]}</div>`;
   }
